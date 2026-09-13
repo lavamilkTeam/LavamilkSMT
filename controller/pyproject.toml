@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "smt-controller"
+version = "0.1.0"
+description = "Headless SMT vision and machine-control service"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+network = ["zeroconf>=0.151.3,<1", "ifaddr>=0.2,<1"]
+
+[project.scripts]
+smt-controller = "smt_controller.app.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

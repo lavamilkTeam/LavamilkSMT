@@ -1,16 +1,17 @@
 # SMT 桌面贴片机
 
-软件、通信协议和机械设计放在同一个 Git 仓库中，共同维护版本。当前为工程骨架，尚未包含可运行的控制程序或固件。
+软件、通信协议和机械设计放在同一个 Git 仓库中，共同维护版本。当前包含纯 Python 无界面控制骨架、模拟定位流程及局域网发现与状态连接，尚未接入真实硬件或固件。
 
 ## 项目结构
 
 ```text
 SMT/
-├── console/              # 笔记本浏览器界面
-├── controller/           # RK3566：设备流程、视觉、通信及 Web 服务
+├── console/              # 笔记本侧应用预留
+├── controller/           # Linux 板：纯 Python 设备流程、视觉与通信
 ├── firmware/
 │   └── mainboard/        # 下位机固件，芯片和工具链待确定
-├── protocols/            # 网页 API、下位机协议及版本约定
+├── protocols/            # 局域网连接、下位机协议及版本约定
+├── deploy/               # 板端 systemd 服务模板
 ├── hardware/
 │   ├── mechanical/
 │   │   ├── source/       # 可编辑的机械 CAD 源工程
@@ -27,14 +28,24 @@ SMT/
 
 ## 运行方式
 
-- 笔记本负责开发和浏览器操作界面；界面构建产物部署到 RK3566，由板端提供网页。
-- RK3566 使用适配该板的 Linux，运行控制服务和视觉程序。
+- 笔记本负责制板文件处理、准备任务，通过网线与板端通信。
+- 板端使用适配该板的 Linux，运行无界面控制服务和视觉程序；板型号待最终确定。
 - 下位机固件独立编译和烧录，负责实时运动执行和硬件保护。
+- PCB 由夹具固定；随头下视相机找 Mark，工作台上视相机测元件偏移，详见 [双相机方案](docs/vision-plan.md)。
 - STEP/DWG 等机械文件由 CAD 软件打开，不参与软件构建。
 
 同一个仓库不代表同一个进程、编译器或部署包。各部分保留独立的依赖和构建入口，在协议层约定协作方式。
 
-第一版计划采用 Python、OpenCV 和 FastAPI 实现板端服务。网页框架、下位机芯片和通信接口确定后，再补充对应工程配置。
+板端采用纯 Python + asyncio，OpenCV 已准备在目标环境中，真实视觉适配器待接入。
+局域网发现与 TCP 连接已实现，使用方法见 [连接协议](protocols/lan-connection-v1.md)。
+当前运行模拟演示无需第三方依赖：
+
+```bash
+PYTHONPATH=controller/src python3 -m smt_controller --demo
+PYTHONPATH=controller/src python3 -m unittest discover -s controller/tests -v
+```
+
+演示仅使用模拟运动、合成图像和固定定位结果，不执行真实识别或贴装。目录与开发说明见 [controller/README.md](controller/README.md)。
 
 ## 文件管理
 
@@ -49,9 +60,11 @@ SMT/
 
 ## 下一步
 
-1. 确认 RK3566 板型号、Linux 镜像和 USB 相机接口能力。
+1. 确认控制板型号、Linux 镜像和 USB 相机接口能力。
 2. 确认下位机芯片、通信接口和已有固件。
-3. 在 `protocols/` 定义最小控制协议，再实现模拟下位机。
-4. 跑通网页点动、相机预览、标定和单次取放。
+3. 在 `protocols/` 定义最小控制协议，再接入真实设备适配器。
+4. 跑通实际采集、定位、标定和单次取放，再增加网络任务入口。
 
 架构约定见 [docs/architecture.md](docs/architecture.md)。
+
+目标板开发环境与运行命令见 [docs/target-environment.md](docs/target-environment.md)。

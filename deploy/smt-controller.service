@@ -1,0 +1,19 @@
+[Unit]
+Description=SMT controller LAN discovery and status service
+After=network.target
+
+[Service]
+Type=simple
+User=smt-controller
+Group=smt-controller
+WorkingDirectory=/opt/smt/controller
+StateDirectory=smt-controller
+ExecStart=/opt/smt/venv/bin/python -m smt_controller --serve --interface eth0 --port 8765 --name SMT-Controller --state-dir /var/lib/smt-controller
+Environment=PYTHONUNBUFFERED=1
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=10
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
