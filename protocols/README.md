@@ -5,6 +5,8 @@
 已实现：[局域网发现与连接 v1](lan-connection-v1.md)，使用 mDNS 发现、TCP JSON Lines 长连接，
 支持握手、心跳及只读状态查询。以下业务协议仍待确定。
 
+另有 [OpenCV 预览 HTTP v1](preview-http-v1.md)，通过独立端口 8766 传输处理后的相机画面。
+
 ## 笔记本与 Linux 控制板
 
 - 设备状态与坐标字段、长度及角度单位。

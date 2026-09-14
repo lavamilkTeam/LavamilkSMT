@@ -21,7 +21,7 @@ ssh root@192.168.1.100
 笔记本侧尚未代为配置或完成直连验证。若接入现有局域网，需先确认该静态地址没有冲突，
 且笔记本具有同网段地址；若其他接口已使用 `192.168.1.0/24`，需规划不同的直连网段。
 板端已提供 mDNS 发现与 TCP 8765 连接服务，支持握手、心跳、只读状态查询。
-真实运动接口与网页尚未提供。客户端可按设备 ID 发现，不必固定记住 DHCP 地址。
+真实运动接口尚未提供。另有 HTTP 8766 视频预览，见下文；客户端可按设备 ID 发现，不必固定记住 DHCP 地址。
 
 ## 实测平台
 
@@ -44,7 +44,7 @@ ssh root@192.168.1.100
 └── setup/        # 源码包、构建脚本、日志与环境验证结果
 ```
 
-开机启动只读网络连接服务，不初始化机器或自动回零。
+开机启动只读网络连接服务和独立相机预览服务，不初始化运动系统或自动回零。
 修改工作区源码后需显式同步目标目录；目标目录不是共享挂载。
 
 ## 局域网服务部署
@@ -86,6 +86,56 @@ ifaddr/poetry-core wheel、服务文件和 SHA-256 清单；它不是空系统�
 未通过修改实际 IP、拔网线或重启整块板子来验证网络变化；这些路径仍需现场验证。
 记录见工作区 `artifacts/network-setup/lan-verification.json` 与板端
 `/opt/smt/setup/network-tests.log`。
+
+## OpenCV 预览部署与实测（2026-09-14）
+
+已连接 UVC `FD WDR Camera`（USB `1d6c:0103`），设备为 `/dev/video0`，USB 2.0 链路。
+服务使用稳定路径 `/dev/v4l/by-id/usb-FD_WDR_Camera_FD_WDR_Camera_20211101001-video-index0`。
+原生 OpenCV 的 V4L2 后端可以采集并解码相机 MJPG 输出。
+
+独立 `smt-preview.service` 已启用开机启动，使用 `smt-controller` 用户及 `video` 附加组。
+默认 640×480、处理输出上限 10fps、JPEG 质量 75，同时生成灰度、二值化和轮廓画面。
+当前局域网内可直接打开：
+
+- 灰度：`http://192.168.2.7:8766/stream/gray.mjpg`
+- 二值化：`http://192.168.2.7:8766/stream/threshold.mjpg`
+- 轮廓：`http://192.168.2.7:8766/stream/contours.mjpg`
+- 状态：`http://192.168.2.7:8766/status.json`
+
+直连时按前文配置笔记本网卡，并把 URL 地址换为 `192.168.1.100`。
+服务配置和客户端说明见 [预览 HTTP v1](../protocols/preview-http-v1.md)。
+
+此次真实网线验证从 `192.168.2.15` 同时接收三路，每路 40 帧，JPEG 全部可解码为
+640×480，序号严格递增。实际每路 **5.36–5.37fps**，三路 JPEG 负载合计约
+**758KB/s（6.1Mbps）**。一次状态采样中，解码约 36ms、处理约 37ms、三图编码约 114ms；
+10fps 是设置上限，当前板端没有达到。此场景主要耗时在 JPEG 编码，画面内容变化会影响耗时和带宽。
+预览进程观察到约 40MB RSS，CPU 约占一个核心。未测两只相机同时工作。
+
+一个视频客户端断开后另一个继续收到 10 帧，TCP 8765 仍能握手/查询且运动保持禁用。
+预览服务重启后已重新取得相机，笔记本接收示例连续收到 10 帧；未重启整块开发板或拔插相机。
+本地与板端 27 项测试均通过；三种图像已人工检查，尚未验证 PCB Mark 或元件定位精度。
+记录在工作区 `artifacts/preview-setup/`，板端安装日志为 `/opt/smt/setup/preview/install-preview.log`。
+
+管理命令：
+
+```bash
+systemctl status smt-preview
+journalctl -u smt-preview -n 50 --no-pager
+systemctl restart smt-preview
+systemctl stop smt-preview  # 其他采集程序使用同一相机前先停止预览
+```
+
+重新部署时，把 `controller/` 打包为 `controller.tar.gz`（排除 `__pycache__` 和 `*.egg-info`），
+连同 [服务模板](../deploy/smt-preview.service)、[安装脚本](../tools/install_target_preview.sh)
+放进 `/opt/smt/setup/preview/`。对这三个文件生成 `preview-source.sha256`，随后执行：
+
+```bash
+bash /opt/smt/setup/preview/install_target_preview.sh
+```
+
+脚本要求已有独立 Python、NumPy/OpenCV、项目构建依赖和 `smt-controller` 用户；
+它备份项目目录，安装源码，执行检查后启动预览，不重新构建视觉库。
+实际相机型号不同需先修改服务的 `--device`。服务运行时不能再手动启动第二个相机采集器。
 
 ## 软件来源与版本
 

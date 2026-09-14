@@ -12,6 +12,10 @@
 另有独立 `--serve` 模式：mDNS 局域网发现、TCP 长连接、握手、心跳及只读状态查询。
 它持久保存设备 ID，不初始化模拟或真实机器，状态明确为 `unconfigured/disconnected`。
 
+独立 `smt-preview` 入口已接入真实 USB 相机，提供灰度、二值化和轮廓图的 HTTP MJPEG 预览，
+默认端口 8766。用法与 Python 接收示例见 [预览协议](../protocols/preview-http-v1.md)。
+预览不执行运动，也不输出正式 Mark/元件定位结论。
+
 已组装两只模拟相机：`down_looking`（Mark/料位）、`up_looking`（吸取后的元件）。
 任务按角色选择相机，结果同时核对相机角色与帧编号。默认演示只执行一次下视模拟定位。
 第一版使用固定 PCB，不加入全局相机或 YOLO，详见 [视觉方案](../docs/vision-plan.md)。
@@ -25,6 +29,7 @@ controller/
 │   ├── app/           # 程序入口、依赖组装与资源清理
 │   ├── api/           # 不绑定传输框架的业务接口
 │   ├── connectivity/  # 设备 ID、mDNS、TCP 协议、服务端与客户端
+│   ├── preview/       # 独立相机预览：采集、OpenCV 处理、最新帧缓存、HTTP 和客户端
 │   ├── jobs/          # 任务模型与最小定位流程
 │   ├── machine/       # 全机状态、控制权与运动会话
 │   ├── vision/        # 识别结果与流水线扩展位置

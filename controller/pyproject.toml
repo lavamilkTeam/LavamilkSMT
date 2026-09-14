@@ -14,6 +14,7 @@ network = ["zeroconf>=0.151.3,<1", "ifaddr>=0.2,<1"]
 
 [project.scripts]
 smt-controller = "smt_controller.app.main:main"
+smt-preview = "smt_controller.app.preview:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

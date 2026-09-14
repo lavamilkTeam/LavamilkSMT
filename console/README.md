@@ -37,3 +37,16 @@ asyncio.run(main())
 
 当前开放发现、握手、心跳、只读状态；完整协议见
 [局域网连接 v1](../protocols/lan-connection-v1.md)。
+
+## OpenCV 视频预览
+
+板端端口 8766 提供灰度、二值化和轮廓叠加三种 MJPEG 流。
+通过设备发现取得可达 IP 后，桌面程序可以使用 `smt_controller.preview.client.iter_preview` 接收 JPEG。
+示例无需 OpenCV 或 GUI：
+
+```bash
+python examples/receive_preview.py --host 192.168.2.7 --mode contours --frames 30
+```
+
+以上命令在 `console/` 目录执行，需先安装基础 `controller` 包。
+接口、断线处理及嵌入桌面程序的方法见 [预览协议](../protocols/preview-http-v1.md)。

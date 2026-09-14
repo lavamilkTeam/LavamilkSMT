@@ -1,0 +1,20 @@
+[Unit]
+Description=SMT OpenCV processed camera preview
+After=network.target
+
+[Service]
+Type=simple
+User=smt-controller
+Group=smt-controller
+SupplementaryGroups=video
+WorkingDirectory=/opt/smt/controller
+RuntimeDirectory=smt-preview
+ExecStart=/opt/smt/venv/bin/python -m smt_controller.app.preview --device /dev/v4l/by-id/usb-FD_WDR_Camera_FD_WDR_Camera_20211101001-video-index0 --width 640 --height 480 --fps 10 --quality 75 --port 8766 --lock-file /run/smt-preview/camera.lock
+Environment=PYTHONUNBUFFERED=1
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=10
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
