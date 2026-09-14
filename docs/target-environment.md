@@ -4,6 +4,9 @@
 检查与准备日期：2026-09-13。
 登录凭据不保存在仓库中。
 
+2026-09-14 新增板端中文版 OpenPnP 浏览器入口（6080），独立于下述 Python 服务。
+运行方式、服务管理和接入边界见 [控制界面部署](console-deployment.md)。
+
 ## 控制笔记本连接
 
 板端 `/etc/netplan/10-dhcp-all-interfaces.yaml` 已持久配置 `eth0` 的

@@ -1,0 +1,557 @@
+/*
+ * Copyright (C) 2011 Jason von Nieda <jason@vonnieda.org>
+ * 
+ * This file is part of OpenPnP.
+ * 
+ * OpenPnP is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * General Public License as published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ * 
+ * OpenPnP is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+ * Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with OpenPnP. If not, see
+ * <http://www.gnu.org/licenses/>.
+ * 
+ * For more information about OpenPnP visit http://openpnp.org
+ */
+
+package org.openpnp.gui;
+
+import java.awt.BorderLayout;
+import java.awt.Component;
+import java.awt.Frame;
+import java.awt.Toolkit;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.StringSelection;
+import java.awt.event.ActionEvent;
+import java.awt.event.MouseEvent;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
+import java.io.StringReader;
+import java.io.StringWriter;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.prefs.Preferences;
+import java.util.regex.PatternSyntaxException;
+import java.util.stream.Collectors;
+
+import javax.swing.AbstractAction;
+import javax.swing.Action;
+import javax.swing.DefaultCellEditor;
+import javax.swing.JButton;
+import javax.swing.JComboBox;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
+import javax.swing.JTabbedPane;
+import javax.swing.JTable;
+import javax.swing.JTextField;
+import javax.swing.JToolBar;
+import javax.swing.ListSelectionModel;
+import javax.swing.RowFilter;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.ListSelectionListener;
+import javax.swing.table.TableRowSorter;
+
+import org.openpnp.Translations;
+import org.openpnp.gui.components.AutoSelectTextTable;
+import org.openpnp.gui.support.AbstractConfigurationWizard;
+import org.openpnp.gui.support.ActionGroup;
+import org.openpnp.gui.support.Helpers;
+import org.openpnp.gui.support.Icons;
+import org.openpnp.gui.support.IdentifiableListCellRenderer;
+import org.openpnp.gui.support.IdentifiableTableCellRenderer;
+import org.openpnp.gui.support.MessageBoxes;
+import org.openpnp.gui.support.MultisortTableHeaderCellRenderer;
+import org.openpnp.gui.support.NamedListCellRenderer;
+import org.openpnp.gui.support.NamedTableCellRenderer;
+import org.openpnp.gui.support.PackagesComboBoxModel;
+import org.openpnp.gui.support.VisionSettingsComboBoxModel;
+import org.openpnp.gui.support.Wizard;
+import org.openpnp.gui.support.WizardContainer;
+import org.openpnp.gui.tablemodel.PartsTableModel;
+import org.openpnp.gui.wizards.PartSettingsWizard;
+import org.openpnp.model.AbstractVisionSettings;
+import org.openpnp.model.BottomVisionSettings;
+import org.openpnp.model.Configuration;
+import org.openpnp.model.Configuration.TablesLinked;
+import org.openpnp.model.FiducialVisionSettings;
+import org.openpnp.model.Part;
+import org.openpnp.spi.Feeder;
+import org.openpnp.spi.FiducialLocator;
+import org.openpnp.spi.PartAlignment;
+import org.openpnp.util.UiUtils;
+import org.openpnp.util.FeederUtils;
+import org.pmw.tinylog.Logger;
+import org.simpleframework.xml.Serializer;
+
+@SuppressWarnings("serial")
+public class PartsPanel extends JPanel implements WizardContainer {
+
+
+    private static final String PREF_DIVIDER_POSITION = "PartsPanel.dividerPosition";
+    private static final int PREF_DIVIDER_POSITION_DEF = -1;
+    private Preferences prefs = Preferences.userNodeForPackage(PartsPanel.class);
+
+    final private Configuration configuration;
+    final private Frame frame;
+
+    private PartsTableModel tableModel;
+    private TableRowSorter<PartsTableModel> tableSorter;
+    private JTextField searchTextField;
+    private JTable table;
+    private ActionGroup singleSelectionActionGroup;
+    private ActionGroup multiSelectionActionGroup;
+    private JTabbedPane tabbedPane;
+    private Part selectedPart;
+    private int priorRowIndex = -1;
+    private HashMap<Class, Integer> lastSelectedTabIndex = new HashMap<>();
+
+    public PartsPanel(Configuration configuration, Frame frame) {
+        this.configuration = configuration;
+        this.frame = frame;
+
+        singleSelectionActionGroup = new ActionGroup(deletePartAction, pickPartAction, copyPartToClipboardAction);
+        singleSelectionActionGroup.setEnabled(false);
+        multiSelectionActionGroup = new ActionGroup(deletePartAction);
+        multiSelectionActionGroup.setEnabled(false);
+
+        setLayout(new BorderLayout(0, 0));
+        tableModel = new PartsTableModel();
+        tableSorter = new TableRowSorter<>(tableModel);
+
+        JPanel toolbarAndSearch = new JPanel();
+        add(toolbarAndSearch, BorderLayout.NORTH);
+        toolbarAndSearch.setLayout(new BorderLayout(0, 0));
+
+        JToolBar toolBar = new JToolBar();
+        toolBar.setFloatable(false);
+        toolbarAndSearch.add(toolBar);
+
+        JPanel panel_1 = new JPanel();
+        toolbarAndSearch.add(panel_1, BorderLayout.EAST);
+
+        JLabel lblSearch = new JLabel(Translations.getString("PartsPanel.SearchLabel.text")); //$NON-NLS-1$
+        panel_1.add(lblSearch);
+
+        searchTextField = new JTextField();
+        searchTextField.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                search();
+            }
+
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                search();
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                search();
+            }
+        });
+        panel_1.add(searchTextField);
+        searchTextField.setColumns(15);
+
+        JComboBox packagesCombo = new org.openpnp.gui.components.LocalizedComboBox(new PackagesComboBoxModel());
+        packagesCombo.setMaximumRowCount(20);
+        packagesCombo.setRenderer(new IdentifiableListCellRenderer<org.openpnp.model.Package>());
+
+        JSplitPane splitPane = new JSplitPane();
+        splitPane.setOrientation(JSplitPane.VERTICAL_SPLIT);
+        splitPane.setContinuousLayout(true);
+        splitPane
+                .setDividerLocation(prefs.getInt(PREF_DIVIDER_POSITION, PREF_DIVIDER_POSITION_DEF));
+        splitPane.addPropertyChangeListener("dividerLocation", new PropertyChangeListener() {
+            @Override
+            public void propertyChange(PropertyChangeEvent evt) {
+                prefs.putInt(PREF_DIVIDER_POSITION, splitPane.getDividerLocation());
+            }
+        });
+        add(splitPane, BorderLayout.CENTER);
+
+        tabbedPane = new JTabbedPane(JTabbedPane.TOP);
+
+        table = new AutoSelectTextTable(tableModel) {
+            @Override
+            public String getToolTipText(MouseEvent evt) {
+                int column = convertColumnIndexToModel(columnAtPoint(evt.getPoint()));
+                if(column==2) { return Translations.getString("PartsTableModel.Column.Height.toolTip"); } //$NON-NLS-1$
+                if(column==3) { return Translations.getString("PartsTableModel.Column.ThroughBoardDepth.toolTip"); } //$NON-NLS-1$
+                return null;
+            }
+        };
+        table.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
+        table.setDefaultEditor(org.openpnp.model.Package.class,
+                new DefaultCellEditor(packagesCombo));
+        table.setDefaultRenderer(org.openpnp.model.Package.class,
+                new IdentifiableTableCellRenderer<org.openpnp.model.Package>());
+
+        JComboBox<BottomVisionSettings> bottomVisionCombo = new org.openpnp.gui.components.LocalizedComboBox<>(
+                new VisionSettingsComboBoxModel(BottomVisionSettings.class));
+        bottomVisionCombo.setMaximumRowCount(20);
+        bottomVisionCombo.setRenderer(new NamedListCellRenderer<>());
+        table.setDefaultEditor(BottomVisionSettings.class,
+                new DefaultCellEditor(bottomVisionCombo));
+
+        JComboBox<FiducialVisionSettings> fiducialVisionCombo = new org.openpnp.gui.components.LocalizedComboBox<>(
+                new VisionSettingsComboBoxModel(FiducialVisionSettings.class));
+        fiducialVisionCombo.setMaximumRowCount(20);
+        fiducialVisionCombo.setRenderer(new NamedListCellRenderer<>());
+        table.setDefaultEditor(FiducialVisionSettings.class,
+                new DefaultCellEditor(fiducialVisionCombo));
+
+        table.setDefaultRenderer(AbstractVisionSettings.class,
+                new NamedTableCellRenderer<AbstractVisionSettings>());
+
+        table.setRowSorter(tableSorter);
+        table.getTableHeader().setDefaultRenderer(new MultisortTableHeaderCellRenderer());
+        splitPane.setLeftComponent(new JScrollPane(table));
+        splitPane.setRightComponent(tabbedPane);
+        
+        toolBar.add(newPartAction);
+        toolBar.add(deletePartAction);
+        toolBar.addSeparator();
+        toolBar.add(pickPartAction);
+        
+        toolBar.addSeparator();
+        JButton btnNewButton = new JButton(copyPartToClipboardAction);
+        btnNewButton.setHideActionText(true);
+        toolBar.add(btnNewButton);
+        
+        JButton btnNewButton_1 = new JButton(pastePartToClipboardAction);
+        btnNewButton_1.setHideActionText(true);
+        toolBar.add(btnNewButton_1);
+
+        table.getSelectionModel().addListSelectionListener(new ListSelectionListener() {
+            @Override
+            public void valueChanged(ListSelectionEvent e) {
+                if (e.getValueIsAdjusting()) {
+                    return;
+                }
+                if (table.getSelectedRow() != priorRowIndex) {
+                    priorRowIndex = table.getSelectedRow();
+
+                    updateWizards();
+                }
+            }
+        });
+        
+        Configuration.get().addPropertyChangeListener("visionSettings", new PropertyChangeListener() {
+            @Override
+            public void propertyChange(PropertyChangeEvent evt) {
+                // Handle vision settings changes like selection changes, as the inherited settings might change. 
+                updateWizards();
+            }
+        });
+
+        tableModel.addTableModelListener(e -> {
+            if (selectedPart != null && getSelectedPart() != selectedPart) { 
+                // Reselect previously selected settings.
+                Helpers.selectObjectTableRow(table, selectedPart);
+            }
+        });
+    }
+
+    public Part getSelectedPart() {
+        List<Part> selections = getSelections();
+        if (selections.size() != 1) {
+            return null;
+        }
+        return selections.get(0);
+    }
+
+    private List<Part> getSelections() {
+        List<Part> selections = new ArrayList<>();
+        for (int selectedRow : table.getSelectedRows()) {
+            selectedRow = table.convertRowIndexToModel(selectedRow);
+            try {
+                selections.add(tableModel.getRowObjectAt(selectedRow));
+            }
+            catch (IndexOutOfBoundsException e) {
+                // sometimes this happens when deleting a row, if the gui state
+                // updates after the model state
+                Logger.warn("part selection index {} out of bounds", selectedRow);
+            }
+        }
+        return selections;
+    }
+
+    private void search() {
+        RowFilter<PartsTableModel, Object> rf = null;
+        // If current expression doesn't parse, don't update.
+        try {
+            rf = RowFilter.regexFilter("(?i)" + searchTextField.getText().trim());
+        }
+        catch (PatternSyntaxException e) {
+            Logger.warn(e, org.openpnp.Translations.getString("Local.01ee45e5e1895f77"));
+            return;
+        }
+        tableSorter.setRowFilter(rf);
+    }
+
+    public final Action newPartAction = new AbstractAction() {
+        {
+            putValue(SMALL_ICON, Icons.add);
+            putValue(NAME, Translations.getString("PartsPanel.Action.NewPart")); //$NON-NLS-1$
+            putValue(SHORT_DESCRIPTION, Translations.getString("PartsPanel.Action.NewPart.Description")); //$NON-NLS-1$
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent arg0) {
+            if (Configuration.get().getPackages().size() == 0) {
+                MessageBoxes.errorBox(getTopLevelAncestor(), org.openpnp.Translations.getString("Local.54a0e8c17ebb21a1"),
+                        org.openpnp.Translations.getString("Local.121e4ff08fdacbc6"));
+                return;
+            }
+
+            String id;
+            while ((id = JOptionPane.showInputDialog(frame,
+                    org.openpnp.Translations.getString("Local.718a5c1e97e5f4f0"))) != null) {
+                id = id.trim();
+                if (id.isEmpty()) {
+                    break;
+                }
+                if (configuration.getPart(id) != null) {
+                    MessageBoxes.errorBox(frame, org.openpnp.Translations.getString("Local.54a0e8c17ebb21a1"), org.openpnp.Translations.format("Local.eeb7c782b78f9a61", (id)));
+                    continue;
+                }
+                Part part = new Part(id);
+
+                part.setPackage(Configuration.get().getPackages().get(0));
+
+                configuration.addPart(part);
+                tableModel.fireTableDataChanged();
+                Helpers.selectObjectTableRow(table, part);
+                break;
+            }
+        }
+    };
+
+    public final Action deletePartAction = new AbstractAction() {
+        {
+            putValue(SMALL_ICON, Icons.delete);
+            putValue(NAME, Translations.getString("PartsPanel.Action.DeletePart")); //$NON-NLS-1$
+            putValue(SHORT_DESCRIPTION, Translations.getString("PartsPanel.Action.DeletePart.Description")); //$NON-NLS-1$
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent arg0) {
+            List<Part> selections = getSelections();
+            List<String> ids = selections.stream().map(Part::getId).collect(Collectors.toList());
+            String formattedIds;
+            if (ids.size() <= 3) {
+                formattedIds = String.join(", ", ids);
+            }
+            else {
+                formattedIds = String.join(", ", ids.subList(0, 3)) + ", and " + (ids.size() - 3) + " others";
+            }
+            
+            int ret = JOptionPane.showConfirmDialog(getTopLevelAncestor(),
+                    Translations.getString("DialogMessages.ConfirmDelete.text") + " " + formattedIds + "?", //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+                    Translations.getString("DialogMessages.ConfirmDelete.title") + " " + selections.size() + " " + Translations.getString( //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+                                    "CommonWords.parts") + "?", JOptionPane.YES_NO_OPTION); //$NON-NLS-1$ //$NON-NLS-2$
+            if (ret == JOptionPane.YES_OPTION) {
+                for (Part part : selections) {
+                    Configuration.get().removePart(part);
+                }
+            }
+        }
+    };
+
+    public final Action pickPartAction = new AbstractAction() {
+        {
+            putValue(SMALL_ICON, Icons.pick);
+            putValue(NAME, Translations.getString("PartsPanel.Action.PickPart")); //$NON-NLS-1$
+            putValue(SHORT_DESCRIPTION, Translations.getString("PartsPanel.Action.PickPart.Description")); //$NON-NLS-1$
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent arg0) {
+            UiUtils.submitUiMachineTask(() -> {
+                Part part = getSelectedPart();
+                Feeder feeder = FeederUtils.findFeeder(Configuration.get().getMachine(),part,null,null);
+                if (feeder == null) {
+                    throw new Exception(org.openpnp.Translations.format("Local.6d3440ea6afa2d46", (part.getId())));
+                }
+                // Perform the whole Job like pick cycle as in the FeedersPanel. 
+                FeedersPanel.pickFeeder(feeder);
+            });
+        }
+    };
+
+    public final Action copyPartToClipboardAction = new AbstractAction() {
+        {
+            putValue(SMALL_ICON, Icons.copy);
+            putValue(NAME, Translations.getString("PartsPanel.Action.CopyPartToClipboard")); //$NON-NLS-1$
+            putValue(SHORT_DESCRIPTION, Translations.getString("PartsPanel.Action.CopyPartToClipboard.Description")); //$NON-NLS-1$
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent arg0) {
+            Part part = getSelectedPart();
+            if (part == null) {
+                return;
+            }
+            try {
+                Serializer s = Configuration.createSerializer();
+                StringWriter w = new StringWriter();
+                s.write(part, w);
+                StringSelection stringSelection = new StringSelection(w.toString());
+                Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+                clipboard.setContents(stringSelection, null);
+            }
+            catch (Exception e) {
+                MessageBoxes.errorBox(getTopLevelAncestor(), org.openpnp.Translations.getString("Local.2c58b2d4975aadc6"), e);
+            }
+        }
+    };
+
+    public final Action pastePartToClipboardAction = new AbstractAction() {
+        {
+            putValue(SMALL_ICON, Icons.paste);
+            putValue(NAME, Translations.getString("PartsPanel.Action.PastePartFromClipboard")); //$NON-NLS-1$
+            putValue(SHORT_DESCRIPTION, Translations.getString("PartsPanel.Action.PastePartFromClipboard.Description")); //$NON-NLS-1$
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent arg0) {
+            String id;
+            while ((id = JOptionPane.showInputDialog(frame,
+                    org.openpnp.Translations.getString("Local.f7c7d999cce100ee"))) != null) {
+                id = id.trim();
+                if (id.isEmpty()) {
+                    break;
+                }
+                if (configuration.getPart(id) == null) {
+                    break;
+                }
+                MessageBoxes.errorBox(frame, org.openpnp.Translations.getString("Local.54a0e8c17ebb21a1"), org.openpnp.Translations.format("Local.eeb7c782b78f9a61", (id)));
+            }
+            if (id == null || id.isEmpty()) {
+                return;
+            }
+            try {
+                try {
+                    Configuration.get().lockListeners();
+                    Serializer ser = Configuration.createSerializer();
+                    Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+                    String s = (String) clipboard.getData(DataFlavor.stringFlavor);
+                    StringReader r = new StringReader(s);
+                    Part part = ser.read(Part.class, s);
+                    part.setId(id);
+                    Configuration.get().addPart(part);
+                    tableModel.fireTableDataChanged();
+                    Helpers.selectLastTableRow(table);
+                } finally {
+                    Configuration.get().unlockListeners();
+                }
+            }
+            catch (Exception e) {
+                MessageBoxes.errorBox(getTopLevelAncestor(), org.openpnp.Translations.getString("Local.3b3af9fe7c41ab4e"), e);
+            }
+        }
+    };
+    private int selectedTab;
+    private String priorPartId;
+
+    public void updateWizards() {
+        List<Part> selections = getSelections();
+
+        if (selections.size() > 1) {
+            singleSelectionActionGroup.setEnabled(false);
+            multiSelectionActionGroup.setEnabled(true);
+        }
+        else {
+            multiSelectionActionGroup.setEnabled(false);
+            singleSelectionActionGroup.setEnabled(!selections.isEmpty());
+        }
+
+        Part selectedPart = getSelectedPart();
+        
+        if (tabbedPane.getTabCount() > 0) {
+            selectedTab = tabbedPane.getSelectedIndex();
+        }
+        
+        for (Component comp : tabbedPane.getComponents()) {
+            if (comp instanceof AbstractConfigurationWizard) {
+                ((AbstractConfigurationWizard) comp).dispose();
+            }
+        }
+        tabbedPane.removeAll();
+
+        if (selectedPart != null) {
+            priorPartId = selectedPart.getId();
+            this.selectedPart = selectedPart;
+            Wizard wizard = new PartSettingsWizard(selectedPart);
+            wizard.setWizardContainer(PartsPanel.this);
+            tabbedPane.add(Translations.getString("PartsPanel.SettingsTab.title"), //$NON-NLS-1$
+                    (JPanel) wizard);
+
+            for (PartAlignment partAlignment : Configuration.get().getMachine().getPartAlignments()) {
+                wizard = partAlignment.getPartConfigurationWizard(selectedPart);
+                if (wizard != null) {
+                    wizard.setWizardContainer(PartsPanel.this);
+                    tabbedPane.addTab(wizard.getWizardName(), (JPanel) wizard);
+                }
+            }
+            
+            FiducialLocator fiducialLocator =
+                    Configuration.get().getMachine().getFiducialLocator();
+            wizard = fiducialLocator.getPartConfigurationWizard(selectedPart);
+            if (wizard != null) {
+                wizard.setWizardContainer(PartsPanel.this);
+                tabbedPane.add(wizard.getWizardName(), (JPanel) wizard);
+            }
+            MainFrame mainFrame = MainFrame.get();
+            if (mainFrame.getTabs().getSelectedComponent() == mainFrame.getPartsTab() 
+                    && Configuration.get().getTablesLinked() == TablesLinked.Linked) {
+                mainFrame.getPackagesTab().selectPackageInTable(selectedPart.getPackage());
+                mainFrame.getFeedersTab().selectFeederForPart(selectedPart);
+                mainFrame.getVisionSettingsTab().selectVisionSettingsInTable(selectedPart);
+            }
+            
+            if (selectedTab >= 0 && selectedTab < tabbedPane.getTabCount()) {
+                tabbedPane.setSelectedIndex(selectedTab);
+            }
+        }
+        revalidate();
+        repaint();
+    }
+
+    public void selectPartInTableAndUpdateLinks(Part part) {
+        selectPartInTable(part);
+
+        if(Configuration.get().getTablesLinked() == TablesLinked.Linked)
+        {
+            MainFrame mainFrame = MainFrame.get();
+            mainFrame.getPartsTab().selectPartInTable(part);
+            if (part != null) {
+                mainFrame.getPackagesTab().selectPackageInTable(part.getPackage());
+            }
+            mainFrame.getFeedersTab().selectFeederForPart(part);
+            mainFrame.getVisionSettingsTab().selectVisionSettingsInTable(part);
+        }
+    }
+
+    public void selectPartInTable(Part part) {
+        if (getSelectedPart() != part) {
+            Helpers.selectObjectTableRow(table, part);
+        }
+    }
+
+    @Override
+    public void wizardCompleted(Wizard wizard) {}
+
+    @Override
+    public void wizardCancelled(Wizard wizard) {}
+}

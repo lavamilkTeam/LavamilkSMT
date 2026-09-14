@@ -18,7 +18,17 @@ Linux 板：纯 Python 无界面控制进程
         MCU：实时运动、IO、限位与硬件保护
 ```
 
-板端无本地 UI，也不要求托管网页。console 保留为笔记本侧应用位置。
+Python 控制进程无本地 UI。console/frontend 已导入完整 OpenPnP Java Swing 桌面应用。
+其界面依赖上游业务与硬件模块，当前仍为独立应用，尚未适配本项目 Python 板端协议。
+console/backend 预留给笔记本侧 Go 后端，负责文件解析、工程存储、任务准备和设备通信。
+计划调用关系为 frontend → Go backend → Python controller → MCU；当前仅完成目录划分，
+Java 业务逻辑尚未迁移，本地前后端 API 尚未定义。板端持有机器真实状态与任务执行权。
+当前同时保留笔记本开发预览，并将中文版 OpenPnP 部署到上位机。
+板端 `smt-console.service` 通过 Xvfb、x11vnc 和 noVNC 在 `0.0.0.0:6080`
+提供独立 Swing 会话，浏览器可直接连接上位机，使用时不要求笔记本运行。
+这只是 OpenPnP 的部署位置变化，尚未接通 Python 业务协议，也未实现 Go 后端。
+部署与维护见 [板端控制界面](console-deployment.md)。
+来源、运行方法与待适配边界见 [console/UPSTREAM.md](../console/UPSTREAM.md)。
 当前代码实现离线模拟单次定位，以及独立常驻的局域网发现和只读连接服务。
 真实控制驱动尚未接入，网络服务报告硬件未连接，不在启动或握手时触发回零。
 

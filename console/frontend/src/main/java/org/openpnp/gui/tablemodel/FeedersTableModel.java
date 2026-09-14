@@ -1,0 +1,189 @@
+/*
+ * Copyright (C) 2011 Jason von Nieda <jason@vonnieda.org>
+ * 
+ * This file is part of OpenPnP.
+ * 
+ * OpenPnP is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * General Public License as published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ * 
+ * OpenPnP is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+ * Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with OpenPnP. If not, see
+ * <http://www.gnu.org/licenses/>.
+ * 
+ * For more information about OpenPnP visit http://openpnp.org
+ */
+
+package org.openpnp.gui.tablemodel;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import org.openpnp.ConfigurationListener;
+import org.openpnp.Translations;
+import org.openpnp.model.Configuration;
+import org.openpnp.model.Part;
+import org.openpnp.spi.Feeder;
+import org.openpnp.util.BeanUtils;
+import org.openpnp.machine.reference.ReferenceFeeder;
+
+public class FeedersTableModel extends AbstractObjectTableModel {
+    final private Configuration configuration;
+
+    private String[] columnNames = new String[] {
+            Translations.getString("FeedersTableModel.ColumnName.Name"), //$NON-NLS-1$
+            Translations.getString("FeedersTableModel.ColumnName.Type"), //$NON-NLS-1$
+            Translations.getString("FeedersTableModel.ColumnName.Part"), //$NON-NLS-1$
+            Translations.getString("FeedersTableModel.ColumnName.Priority"), //$NON-NLS-1$
+            Translations.getString("FeedersTableModel.ColumnName.Faults"), //$NON-NLS-1$
+            Translations.getString("FeedersTableModel.ColumnName.Enabled"), //$NON-NLS-1$
+            Translations.getString("FeedersTableModel.ColumnName.FeedOptions") //$NON-NLS-1$
+    };
+
+    private List<Feeder> feeders;
+
+    public FeedersTableModel(Configuration configuration) {
+        this.configuration = configuration;
+        Configuration.get().addListener(new ConfigurationListener.Adapter() {
+            public void configurationComplete(Configuration configuration) throws Exception {
+                BeanUtils.addPropertyChangeListener(configuration.getMachine(), "feeders", event -> {
+                    refresh();
+                });
+                refresh();
+            }
+        });
+    }
+
+    public void refresh() {
+        feeders = new ArrayList<>(configuration.getMachine().getFeeders());
+        for (Feeder f : feeders) {
+            if ((f instanceof ReferenceFeeder) && ((ReferenceFeeder)f).supportsFeedOptions()) {
+                ((ReferenceFeeder)f).addPropertyChangeListener("feedOptions",  event-> {
+                    fireTableRowsUpdated(0, feeders.size()-1);
+                });
+            }
+        }
+        fireTableDataChanged();
+    }
+
+    public void refresh(Feeder f) {
+        int row = feeders.indexOf(f);
+        if(row>=0) {
+            fireTableRowsUpdated(row, row);
+        }
+    }
+
+    @Override
+    public String getColumnName(int column) {
+        return columnNames[column];
+    }
+
+    public int getColumnCount() {
+        return columnNames.length;
+    }
+
+    public int getRowCount() {
+        return (feeders == null) ? 0 : feeders.size();
+    }
+
+    @Override
+    public Feeder getRowObjectAt(int index) {
+        return feeders.get(index);
+    }
+
+    @Override
+    public int indexOf(Object selectedVisionSettings) {
+        return feeders.indexOf(selectedVisionSettings);
+    }
+
+    @Override
+    public boolean isCellEditable(int rowIndex, int columnIndex) {
+        boolean result = columnIndex == 0 || columnIndex == 5;
+        if (!result && columnIndex == 3)  {
+            Feeder feeder = feeders.get(rowIndex);
+            result = feeder instanceof ReferenceFeeder;
+        }
+        if (!result && columnIndex == 6)  {
+            Feeder feeder = feeders.get(rowIndex);
+            result = feeder instanceof ReferenceFeeder && ((ReferenceFeeder)feeder).supportsFeedOptions();
+        }
+        return result;
+    }
+
+    @Override
+    public void setValueAt(Object aValue, int rowIndex, int columnIndex) {
+        try {
+            Feeder feeder = feeders.get(rowIndex);
+            if (columnIndex == 0) {
+                feeder.setName((String) aValue);
+            }
+            else if (columnIndex == 3) {
+                feeder.setPriority((Feeder.Priority) aValue);
+            }
+            else if (columnIndex == 5) {
+                feeder.setEnabled((Boolean) aValue);
+            }
+            else if (columnIndex == 6) {
+                ((ReferenceFeeder)feeder).setFeedOptions((ReferenceFeeder.FeedOptions) aValue);
+            }
+        }
+        catch (Exception e) {
+            // TODO: dialog, bad input
+        }
+    }
+
+    @Override
+    public Class<?> getColumnClass(int columnIndex) {
+        if (columnIndex == 3) {
+            return Feeder.Priority.class;
+        }
+        else if (columnIndex == 5) {
+            return Boolean.class;
+        }
+        else if (columnIndex == 6) {
+            return ReferenceFeeder.FeedOptions.class;
+        }
+        return super.getColumnClass(columnIndex);
+    }
+
+    public Object getValueAt(int row, int col) {
+        switch (col) {
+            case 0:
+                return feeders.get(row).getName();
+            case 1:
+                return feeders.get(row).getClass().getSimpleName();
+            case 2: {
+                Part part = feeders.get(row).getPart();
+                if (part == null) {
+                    return null;
+                }
+                return part.getId();
+            }
+            case 3:
+                return feeders.get(row).getPriority();
+            case 4: {
+                Feeder feeder = feeders.get(row);
+                if (feeder instanceof ReferenceFeeder) {
+                    return ((ReferenceFeeder)feeder).summariseJobFaults();
+                } else {
+                    return null;
+                }
+            }
+            case 5:
+                return feeders.get(row).isEnabled();
+            case 6: {
+                Feeder feeder = feeders.get(row);
+                if (feeder instanceof ReferenceFeeder) {
+                    return ((ReferenceFeeder)feeder).getFeedOptions();
+                } else {
+                    return null;
+                }
+            }
+            default:
+                return null;
+        }
+    }
+}

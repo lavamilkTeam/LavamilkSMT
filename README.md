@@ -6,7 +6,7 @@
 
 ```text
 SMT/
-├── console/              # 笔记本侧应用预留
+├── console/              # frontend 桌面端、backend Go 后端预留与通信示例
 ├── controller/           # Linux 板：纯 Python 设备流程、视觉与通信
 ├── firmware/
 │   └── mainboard/        # 下位机固件，芯片和工具链待确定
@@ -30,6 +30,7 @@ SMT/
 
 - 笔记本负责制板文件处理、准备任务，通过网线与板端通信。
 - 板端使用适配该板的 Linux，运行无界面控制服务和视觉程序；板型号待最终确定。
+- 中文 OpenPnP 可由上位机运行，通过浏览器访问；当前使用独立模拟配置，见 [部署说明](docs/console-deployment.md)。
 - 下位机固件独立编译和烧录，负责实时运动执行和硬件保护。
 - PCB 由夹具固定；随头下视相机找 Mark，工作台上视相机测元件偏移，详见 [双相机方案](docs/vision-plan.md)。
 - STEP/DWG 等机械文件由 CAD 软件打开，不参与软件构建。

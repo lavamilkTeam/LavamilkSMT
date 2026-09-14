@@ -1,0 +1,340 @@
+/*
+ * Copyright (C) 2011 Jason von Nieda <jason@vonnieda.org>
+ * 
+ * This file is part of OpenPnP.
+ * 
+ * OpenPnP is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * General Public License as published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ * 
+ * OpenPnP is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+ * Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License along with OpenPnP. If not, see
+ * <http://www.gnu.org/licenses/>.
+ * 
+ * For more information about OpenPnP visit http://openpnp.org
+ */
+
+package org.openpnp.machine.reference.camera.wizards;
+
+import java.awt.event.ActionEvent;
+import java.util.ArrayList;
+import java.util.List;
+
+import javax.swing.AbstractAction;
+import javax.swing.Action;
+import javax.swing.JButton;
+import javax.swing.JCheckBox;
+import javax.swing.JComboBox;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JTextField;
+import javax.swing.border.TitledBorder;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+
+import org.openpnp.gui.components.ComponentDecorators;
+import org.openpnp.gui.support.AbstractConfigurationWizard;
+import org.openpnp.gui.support.Icons;
+import org.openpnp.gui.support.IntegerConverter;
+import org.openpnp.machine.reference.camera.OpenCvCamera;
+import org.openpnp.machine.reference.camera.OpenCvCamera.OpenCvCaptureProperty;
+import org.openpnp.machine.reference.camera.OpenCvCamera.OpenCvCapturePropertyValue;
+import org.openpnp.util.UiUtils;
+
+import com.jgoodies.forms.layout.ColumnSpec;
+import com.jgoodies.forms.layout.FormLayout;
+import com.jgoodies.forms.layout.FormSpecs;
+import com.jgoodies.forms.layout.RowSpec;
+
+/*
+ * TODO: newly added properties don't get set on first apply
+ */
+@SuppressWarnings("serial")
+public class OpenCvCameraConfigurationWizard extends AbstractConfigurationWizard {
+    private final OpenCvCamera camera;
+
+    private JPanel panelGeneral;
+    
+    private List<OpenCvCapturePropertyValue> properties = new ArrayList<>();
+    
+    private boolean propertyChanging = false;
+    private boolean dirty = false;
+
+    public OpenCvCameraConfigurationWizard(OpenCvCamera camera) {
+        this.camera = camera;
+
+        panelGeneral = new JPanel();
+        contentPanel.add(panelGeneral);
+        panelGeneral.setBorder(new TitledBorder(null,
+                org.openpnp.Translations.getString("Local.c910d474dcd724bf"), TitledBorder.LEADING, TitledBorder.TOP, null));
+        panelGeneral.setLayout(new FormLayout(new ColumnSpec[] {
+                FormSpecs.RELATED_GAP_COLSPEC,
+                FormSpecs.DEFAULT_COLSPEC,
+                FormSpecs.RELATED_GAP_COLSPEC,
+                FormSpecs.DEFAULT_COLSPEC,
+                FormSpecs.RELATED_GAP_COLSPEC,
+                FormSpecs.DEFAULT_COLSPEC,},
+            new RowSpec[] {
+                FormSpecs.RELATED_GAP_ROWSPEC,
+                FormSpecs.DEFAULT_ROWSPEC,
+                FormSpecs.RELATED_GAP_ROWSPEC,
+                FormSpecs.DEFAULT_ROWSPEC,
+                FormSpecs.RELATED_GAP_ROWSPEC,
+                FormSpecs.DEFAULT_ROWSPEC,}));
+
+        JLabel lblDeviceId = new JLabel(org.openpnp.Translations.getString("Local.09a8ec1c3b237356"));
+        panelGeneral.add(lblDeviceId, "2, 2, right, default");
+
+        comboBoxDeviceIndex = new org.openpnp.gui.components.LocalizedComboBox();
+        for (int i = 0; i < 10; i++) {
+            comboBoxDeviceIndex.addItem(new Integer(i));
+        }
+        panelGeneral.add(comboBoxDeviceIndex, "4, 2, left, default");
+
+        lbluseFor_di = new JLabel(org.openpnp.Translations.getString("Local.d9caa8f4fecc9b98"));
+        panelGeneral.add(lbluseFor_di, "6, 2");
+
+        lblPreferredWidth = new JLabel(org.openpnp.Translations.getString("Local.34f051013f07f9f7"));
+        panelGeneral.add(lblPreferredWidth, "2, 4, right, default");
+
+        textFieldPreferredWidth = new JTextField();
+        panelGeneral.add(textFieldPreferredWidth, "4, 4, fill, default");
+        textFieldPreferredWidth.setColumns(10);
+
+        lbluseFor_w = new JLabel(org.openpnp.Translations.getString("Local.70689854f6ab5bbf"));
+        panelGeneral.add(lbluseFor_w, "6, 4");
+
+        lblPreferredHeight = new JLabel(org.openpnp.Translations.getString("Local.46fef1f8b3cad56d"));
+        panelGeneral.add(lblPreferredHeight, "2, 6, right, default");
+
+        textFieldPreferredHeight = new JTextField();
+        panelGeneral.add(textFieldPreferredHeight, "4, 6, fill, default");
+        textFieldPreferredHeight.setColumns(10);
+
+        lbluseFor_h = new JLabel(org.openpnp.Translations.getString("Local.70689854f6ab5bbf"));
+        panelGeneral.add(lbluseFor_h, "6, 6");
+
+        panel = new JPanel();
+        panel.setBorder(new TitledBorder(null, org.openpnp.Translations.getString("Local.f33dc1d50e787da8"), TitledBorder.LEADING,
+                TitledBorder.TOP, null, null));
+        contentPanel.add(panel);
+        panel.setLayout(new FormLayout(new ColumnSpec[] {
+                FormSpecs.RELATED_GAP_COLSPEC,
+                FormSpecs.DEFAULT_COLSPEC,
+                FormSpecs.RELATED_GAP_COLSPEC,
+                FormSpecs.DEFAULT_COLSPEC,
+                FormSpecs.RELATED_GAP_COLSPEC,
+                FormSpecs.DEFAULT_COLSPEC,
+                FormSpecs.RELATED_GAP_COLSPEC,
+                FormSpecs.DEFAULT_COLSPEC,
+                FormSpecs.RELATED_GAP_COLSPEC,
+                FormSpecs.DEFAULT_COLSPEC,},
+            new RowSpec[] {
+                FormSpecs.RELATED_GAP_ROWSPEC,
+                FormSpecs.DEFAULT_ROWSPEC,
+                FormSpecs.RELATED_GAP_ROWSPEC,
+                FormSpecs.DEFAULT_ROWSPEC,}));
+
+        lblProperty = new JLabel(org.openpnp.Translations.getString("Local.40040cb181f7f0ee"));
+        panel.add(lblProperty, "2, 2");
+
+        lblValue = new JLabel(org.openpnp.Translations.getString("Local.8e37953d23daca5f"));
+        panel.add(lblValue, "4, 2");
+
+        propertyCb = new org.openpnp.gui.components.LocalizedComboBox(OpenCvCaptureProperty.values());
+        panel.add(propertyCb, "2, 4");
+
+        propertyValueTf = new JTextField();
+        panel.add(propertyValueTf, "4, 4");
+        propertyValueTf.setColumns(10);
+        
+        readPropertyValueBtn = new JButton(readPropertyValueAction);
+        readPropertyValueBtn.setHideActionText(true);
+        panel.add(readPropertyValueBtn, "6, 4");
+        
+        setBeforeOpenCk = new JCheckBox(org.openpnp.Translations.getString("Local.de8c55f2c02d6994"));
+        panel.add(setBeforeOpenCk, "8, 4");
+        
+        setAfterOpenCk = new JCheckBox(org.openpnp.Translations.getString("Local.fa343ec3eabfc9de"));
+        panel.add(setAfterOpenCk, "10, 4");
+
+        propertyCb.addItemListener(e -> propertyChanged());
+        propertyValueTf.getDocument().addDocumentListener(new DocumentListener() {
+            public void changedUpdate(DocumentEvent e) {
+                if (propertyChanging) {
+                    return;
+                }
+                propertyValueChanged();
+            }
+
+            public void removeUpdate(DocumentEvent e) {
+                if (propertyChanging) {
+                    return;
+                }
+                propertyValueChanged();
+            }
+
+            public void insertUpdate(DocumentEvent e) {
+                if (propertyChanging) {
+                    return;
+                }
+                propertyValueChanged();
+            }
+        });
+        setBeforeOpenCk.addChangeListener(e -> {
+            if (propertyChanging) {
+                return;
+            }
+            OpenCvCapturePropertyValue pv = getPropertyValue((OpenCvCaptureProperty) propertyCb.getSelectedItem());
+            if (pv == null) {
+                return;
+            }
+            pv.setBeforeOpen = setBeforeOpenCk.isSelected();
+            notifyChange();
+        });
+        setAfterOpenCk.addChangeListener(e -> {
+            if (propertyChanging) {
+                return;
+            }
+            OpenCvCapturePropertyValue pv = getPropertyValue((OpenCvCaptureProperty) propertyCb.getSelectedItem());
+            if (pv == null) {
+                return;
+            }
+            pv.setAfterOpen = setAfterOpenCk.isSelected();
+            notifyChange();
+        });
+        
+        // preload the properties
+        properties = new ArrayList<>(camera.getProperties());
+        propertyChanged();
+    }
+
+    private void propertyChanged() {
+        propertyChanging = true;
+        OpenCvCapturePropertyValue pv = getPropertyValue((OpenCvCaptureProperty) propertyCb.getSelectedItem()); 
+        propertyValueTf.setText(pv == null ? "" : "" + pv.value);
+        setBeforeOpenCk.setSelected(pv == null ? false : pv.setBeforeOpen);
+        setAfterOpenCk.setSelected(pv == null ? false : pv.setAfterOpen);
+        propertyChanging = false;
+    }
+
+    private void propertyValueChanged() {
+        String text = propertyValueTf.getText();
+        Double value = null;
+        try {
+            value = Double.valueOf(text);
+        }
+        catch (Exception e) {
+            
+        }
+        setPropertyValue((OpenCvCaptureProperty) propertyCb.getSelectedItem(), value);
+        OpenCvCapturePropertyValue pv = getPropertyValue((OpenCvCaptureProperty) propertyCb.getSelectedItem());
+        if (pv == null) {
+            return;
+        }
+        pv.setBeforeOpen = setBeforeOpenCk.isSelected();
+        pv.setAfterOpen = setAfterOpenCk.isSelected();
+    }
+    
+    private OpenCvCapturePropertyValue getPropertyValue(OpenCvCaptureProperty property) {
+        for (OpenCvCapturePropertyValue pv : properties) {
+            if (pv.property == property) {
+                return pv;
+            }
+        }
+        return null;
+    }
+
+    private void setPropertyValue(OpenCvCaptureProperty property, Double value) {
+        OpenCvCapturePropertyValue pv = null;
+        for (OpenCvCapturePropertyValue pv_ : properties) {
+            if (pv_.property == property) {
+                pv = pv_;
+            }
+        }
+        // If the value is null, remove the property.
+        if (value == null && pv != null) {
+            properties.remove(pv);
+            dirty = true;
+            notifyChange();
+            return;
+        }
+        // Otherwise, if the property doesn't exist then create it.
+        if (pv == null) {
+            pv = new OpenCvCapturePropertyValue();
+            pv.property = property;
+            properties.add(pv);
+        }
+        // And set the value.
+        pv.value = value;
+        dirty = true;
+        notifyChange();
+    }
+    
+    @Override
+    public void createBindings() {
+        IntegerConverter intConverter = new IntegerConverter();
+        addWrappedBinding(camera, "preferredWidth", textFieldPreferredWidth, "text", intConverter);
+        addWrappedBinding(camera, "preferredHeight", textFieldPreferredHeight, "text",
+                intConverter);
+        // Should always be last so that it doesn't trigger multiple camera reloads.
+        addWrappedBinding(camera, "deviceIndex", comboBoxDeviceIndex, "selectedItem");
+
+        ComponentDecorators.decorateWithAutoSelect(textFieldPreferredWidth);
+        ComponentDecorators.decorateWithAutoSelect(textFieldPreferredHeight);
+        ComponentDecorators.decorateWithAutoSelect(propertyValueTf);
+    }
+    
+    @Override
+    protected void loadFromModel() {
+        this.properties = new ArrayList<>(camera.getProperties());
+        propertyChanged();
+        dirty = false;
+        super.loadFromModel();
+    }
+
+    @Override
+    protected void saveToModel() {
+        super.saveToModel();
+        camera.getProperties().clear();
+        camera.getProperties().addAll(this.properties);
+        if (camera.isDirty() || dirty) {
+            UiUtils.messageBoxOnException(() -> {
+                camera.reinitialize(); 
+            });
+        }
+    }
+    
+    public Action readPropertyValueAction = new AbstractAction() {
+        {
+            putValue(SMALL_ICON, Icons.refresh);
+            putValue(NAME, org.openpnp.Translations.getString("Local.8cb95187b59ed60a"));
+            putValue(SHORT_DESCRIPTION, org.openpnp.Translations.getString("Local.518f45caedf3a501"));
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent arg0) {
+            propertyValueTf.setText("" + camera.getOpenCvCapturePropertyValue((OpenCvCaptureProperty) propertyCb.getSelectedItem()));
+        }
+    };
+
+    private JComboBox comboBoxDeviceIndex;
+    private JLabel lblPreferredWidth;
+    private JLabel lblPreferredHeight;
+    private JTextField textFieldPreferredWidth;
+    private JTextField textFieldPreferredHeight;
+    private JLabel lbluseFor_di;
+    private JLabel lbluseFor_w;
+    private JLabel lbluseFor_h;
+    private JPanel panel;
+    private JLabel lblProperty;
+    private JLabel lblValue;
+    private JComboBox propertyCb;
+    private JTextField propertyValueTf;
+    private JCheckBox setBeforeOpenCk;
+    private JCheckBox setAfterOpenCk;
+    private JButton readPropertyValueBtn;
+}

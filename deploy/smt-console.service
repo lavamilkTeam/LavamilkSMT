@@ -1,0 +1,26 @@
+[Unit]
+Description=SMT Chinese OpenPnP browser console
+After=network.target
+StartLimitIntervalSec=120
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=smt-console
+Group=smt-console
+WorkingDirectory=/opt/smt/console/current/frontend
+StateDirectory=smt-console
+Environment=HOME=/var/lib/smt-console
+Environment=LANG=C.UTF-8
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 /opt/smt/console/current/tools/target_frontend.py
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+KillMode=control-group
+Nice=5
+UMask=0077
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
