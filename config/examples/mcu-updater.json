@@ -1,0 +1,18 @@
+{
+  "release": {
+    "manifest_url": "",
+    "public_key": "",
+    "board": "",
+    "protocol": 1,
+    "address": 0,
+    "max_size": 0
+  },
+  "flash": {
+    "executable": "openocd",
+    "serial": ""
+  },
+  "maintenance": {
+    "permit_path": "/var/lib/smt-maintenance/mcu-permit.json",
+    "lock_path": "/var/lib/smt-maintenance/update-lock.json"
+  }
+}

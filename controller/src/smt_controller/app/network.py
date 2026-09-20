@@ -9,6 +9,8 @@ from smt_controller.connectivity.discovery import DiscoveryPublisher, discover
 from smt_controller.connectivity.identity import load_identity
 from smt_controller.connectivity.protocol import HEARTBEAT_SECONDS, ProtocolError
 from smt_controller.connectivity.server import ConnectionServer
+from smt_controller.firmware_update.client import UpdaterClient
+from smt_controller.firmware_update.service import MCUUpdateService
 
 
 def disconnected_status() -> dict:
@@ -21,7 +23,8 @@ def disconnected_status() -> dict:
 
 async def serve(args) -> None:
     identity = load_identity(args.state_dir, args.name)
-    server = ConnectionServer(identity, disconnected_status)
+    updates = MCUUpdateService(UpdaterClient(args.mcu_updater_socket))
+    server = ConnectionServer(identity, disconnected_status, update_handler=updates.handle)
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):

@@ -1,8 +1,13 @@
-# OpenPnP 控制界面
+# 上位机控制面板
 
-笔记本负责制板文件处理、准备贴装任务，通过以太网与板端通信。
-桌面端已导入 OpenPnP（Java Swing、GPL-3.0），源码位于 `frontend/`。
-`backend/` 预留给后续自行开发的 Go 后端，运行在控制笔记本上。
+`console` 属于上位机软件，负责界面、用户交互及面板后端。笔记本、手机作为访问终端，
+本地开发预览不改变其部署定位。`controller` 独立承担机器状态、视觉和任务执行。
+
+## 现有 OpenPnP 应用
+
+面板负责制板文件处理、工程管理与贴装任务准备。
+现有界面已导入 OpenPnP（Java Swing、GPL-3.0），源码位于 `frontend/`。
+`backend/` 预留给后续自行开发的 Go 面板后端，部署在上位机。
 目前前端保留上游应用功能并加入简体中文本土化，Go 后端尚未实现，两者还没有完成运行时解耦。
 开发板上的 `controller/` 仍是独立的 Python 视觉与设备控制程序。
 当前中文版也部署到上位机，由板端运行 Swing 会话、浏览器远程访问。
@@ -13,12 +18,12 @@
 ```text
 console/
 ├── frontend/               # Java Swing 桌面端，暂保留上游依赖的业务模块
-├── backend/                # Go 本地后端预留，职责约定见其 README
+├── backend/                # 上位机 Go 面板后端预留，职责约定见其 README
 ├── openpnp-upstream.json    # 上游提交及逐文件校验值
 ├── UPSTREAM.md             # 来源、许可证、源码入口、适配边界
 ├── build-frontend.sh        # 构建并执行上游测试
 ├── run-frontend.sh          # 启动，使用本仓库独立配置目录
-├── dev-frontend.sh          # 在控制端监听 0.0.0.0:6080，通过浏览器操作 Swing 界面
+├── dev-frontend.sh          # 开发机监听 0.0.0.0:6080，通过浏览器操作 Swing 界面
 ├── setup-dev-frontend.sh    # Debian/Ubuntu 开发显示依赖准备
 ├── tools/                  # 开发工具，不属于 Go 业务后端
 └── examples/               # 本项目 Python 通信示例
@@ -52,14 +57,14 @@ Windows 可以将 `frontend/pom.xml` 作为 Maven 工程导入 IDE，或在 `con
 迁移至 `frontend/` 后源码校验值保持一致，已重新编译打包并验证启动脚本的版本输出；
 此次仅调整目录，未重复执行上述 253 项测试。
 
-## 浏览器开发模式（运行在自己的控制端）
+## 浏览器开发模式（开发机本地预览）
 
 这一节介绍笔记本开发模式；上位机部署使用独立的 `smt-console.service`。
 OpenPnP 是 Swing 应用，没有原生 Web 开发服务器。此模式使用独立 Xvfb 显示器、
 x11vnc、websockify 和 noVNC，让浏览器远程显示并操作现有界面；不会共享当前桌面。
 它是开发显示入口，尚未实现前端与 Go 后端的业务 API。
 
-Debian/Ubuntu 控制端首次准备（已有 Java/Maven 和可运行的前端构建）：
+Debian/Ubuntu 开发机首次准备（已有 Java/Maven 和可运行的前端构建）：
 
 ```bash
 ./console/setup-dev-frontend.sh
@@ -74,10 +79,10 @@ Debian/Ubuntu 控制端首次准备（已有 Java/Maven 和可运行的前端构
 
 ```text
 http://127.0.0.1:6080/vnc.html?autoconnect=true&resize=scale
-http://<控制端局域网IP>:6080/vnc.html?autoconnect=true&resize=scale
+http://<开发机局域网IP>:6080/vnc.html?autoconnect=true&resize=scale
 ```
 
-本次控制端地址是 `192.168.2.15`，不是开发板的 `192.168.2.7`。
+本次开发机地址是 `192.168.2.15`，上位机地址是 `192.168.2.7`。
 首次自动生成访问密码，查看 `local/console-dev/password` 后在 noVNC 登录框输入。
 密码文件权限为 0600；原始 VNC 端口仅监听回环地址，HTTP/WebSocket 入口用于可信局域网开发，
 不提供 TLS。多个浏览器共享同一个应用会话和操作状态。
@@ -99,17 +104,22 @@ noVNC 1.6 在局域网 HTTP 地址下会提示非 HTTPS；需要浏览器安全�
 当前没有可用浏览器自动化环境，未验证 noVNC 页面的实际交互。
 记录保存在 `artifacts/console-dev-setup/`。
 
-## 与板端的职责约定
+## 上位机内部职责约定
 
-计划中的调用关系：`frontend → backend（Go，笔记本）→ controller（Python，开发板）→ MCU`。
+计划中的调用关系：`面板界面 → console/backend（Go，上位机）→ controller（Python，上位机）→ MCU`。
 前端负责界面、用户输入与画面展示；Go 后端负责文件解析、工程存储、任务准备、
-设备会话和板端协议适配；板端负责真实视觉定位、标定变换与任务执行；MCU 负责实时运动和 IO。
+设备会话和控制协议适配；controller 负责真实视觉定位、标定变换与任务执行；MCU 负责实时运动和 IO。
 本地 Go API 尚未定义，不能把当前目录划分视为已完成前后端通信。
 Go 后端的详细边界见 [backend/README.md](backend/README.md)。
 
 操作请求经公开协议进入板端应用服务，不直接绕过机器协调器访问下位机。
-板端负责实际机器状态与执行进度，笔记本重连不能导致重复贴装。
+controller 负责实际机器状态与执行进度，面板或浏览器重连不能导致重复贴装。
 任务格式与网络协议统一维护在 protocols/。
+
+「机器 → 下位机固件更新…」已通过 Python controller 查询 [mcu-updater](../mcu-updater/README.md)，
+默认访问同机 `127.0.0.1:8765`，查询在后台线程执行。当前只检查条件、不烧录：真实停机与维护适配尚未接入。
+这是独立于未实现 Go 面板后端的适配入口，详见 [MCU 更新协议](../protocols/mcu-update-v1.md)。
+[host-updater](../host-updater/README.md) 仍为上位机自身更新预留。升级许可与运动互斥由 controller 协调。
 
 ## 已提供的连接能力
 
