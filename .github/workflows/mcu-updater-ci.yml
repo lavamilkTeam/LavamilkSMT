@@ -1,0 +1,85 @@
+name: MCU updater CI
+
+on:
+  push:
+    branches: [main, kihon]
+    paths:
+      - 'mcu-updater/**'
+      - 'controller/**'
+      - 'console/frontend/**'
+      - 'console/build-frontend.sh'
+      - 'tools/check_mcu_update_link.py'
+      - '.github/workflows/mcu-updater-ci.yml'
+  pull_request:
+    branches: [main, kihon]
+    paths:
+      - 'mcu-updater/**'
+      - 'controller/**'
+      - 'console/frontend/**'
+      - 'console/build-frontend.sh'
+      - 'tools/check_mcu_update_link.py'
+      - '.github/workflows/mcu-updater-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mcu-updater-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: '1.26.8'
+          cache: false # Standard library only; no go.sum.
+      - name: Test state, release verification and flashing boundaries
+        working-directory: mcu-updater
+        run: |
+          go test -race ./...
+          go vet ./...
+      - name: Build Linux binaries
+        working-directory: mcu-updater
+        run: |
+          mkdir -p ../artifacts
+          CGO_ENABLED=0 go build -trimpath -o ../artifacts/smt-mcu-updater ./cmd/smt-mcu-updater
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -o ../artifacts/smt-mcu-updater-linux-armv7 ./cmd/smt-mcu-updater
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -o ../artifacts/smt-mcu-updater-linux-arm64 ./cmd/smt-mcu-updater
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          cache-dependency-path: console/frontend/pom.xml
+      - name: Test Python maintenance boundary
+        run: PYTHONPATH=controller/src python3 -m unittest discover -s controller/tests -p test_firmware_update.py -v
+      - name: Install Chinese fonts required by Swing localization tests
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y fonts-noto-cjk
+      - name: Compile Swing and test update client and translations
+        run: ./console/build-frontend.sh -Djava.awt.headless=true -Dtest=McuUpdateClientTest,ChineseLocalizationTest,LocalisationTest
+      - name: Upload Swing test reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mcu-updater-swing-test-reports
+          path: console/frontend/target/surefire-reports/
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Check real Java to Python to Go processes (no hardware)
+        run: python3 tools/check_mcu_update_link.py
+      - name: Upload updater binaries
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mcu-updater-linux
+          path: artifacts/smt-mcu-updater*
+          if-no-files-found: error
+          retention-days: 14

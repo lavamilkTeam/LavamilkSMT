@@ -11,6 +11,12 @@ http://192.168.2.7:6080/vnc.html?autoconnect=true&resize=scale
 浏览器共享同一个 OpenPnP 会话；计算和配置保存均在板端，不依赖笔记本进程。
 该入口使用 noVNC 远程显示 Java Swing，未将 OpenPnP 改写成网页应用。
 
+`console` 的定位是上位机控制面板；计划中的 Go 面板后端也部署在上位机。
+笔记本或手机是访问终端，本地开发预览是独立开发环境。后续自身更新由
+[host-updater](../host-updater/README.md) 执行，下位机烧录由
+[mcu-updater](../mcu-updater/README.md) 执行。MCU 更新服务和本地检查链路已实现，尚未部署到目标板；
+host-updater 仍为职责约定。当前运行中的控制面板不会因源码变化自动获得新入口，需要重新构建部署。
+
 ## 服务与文件
 
 - 服务：`smt-console.service`，独立 `smt-console` 用户，开机启动。

@@ -656,6 +656,8 @@ public class MainFrame extends JFrame {
 
         mnCommands.add(new JMenuItem(machineControlsPanel.homeAction));
         mnCommands.add(new JMenuItem(machineControlsPanel.startStopMachineAction));
+        mnCommands.addSeparator();
+        mnCommands.add(new JMenuItem(new McuUpdateAction(this)));
 
         int[] ctrl_shift_mask = {KeyEvent.CTRL_DOWN_MASK, KeyEvent.CTRL_DOWN_MASK | KeyEvent.SHIFT_DOWN_MASK};
         for (int mask : ctrl_shift_mask) {

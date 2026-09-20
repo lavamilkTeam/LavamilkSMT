@@ -1,0 +1,25 @@
+[Unit]
+Description=SMT MCU firmware updater
+After=network.target
+
+[Service]
+Type=simple
+User=smt-controller
+Group=smt-controller
+WorkingDirectory=/opt/smt/mcu-updater
+RuntimeDirectory=smt-mcu-updater
+RuntimeDirectoryMode=0700
+StateDirectory=smt-mcu-updater
+StateDirectoryMode=0700
+ExecStart=/opt/smt/mcu-updater/smt-mcu-updater --state-dir /var/lib/smt-mcu-updater --socket /run/smt-mcu-updater/service.sock
+# No --config by default: readiness queries work, physical flashing remains unconfigured.
+# Supply an operator-owned config using a systemd override after hardware integration.
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=330
+KillMode=mixed
+UMask=0077
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

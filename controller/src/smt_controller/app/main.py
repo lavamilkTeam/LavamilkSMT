@@ -34,6 +34,9 @@ def main() -> None:
                         help="持久设备 ID 保存目录")
     parser.add_argument("--timeout", type=float, default=5, help="发现等待秒数，默认 5")
     parser.add_argument("--once", action="store_true", help="连接并查询一次状态后退出")
+    parser.add_argument("--mcu-updater-socket", type=Path,
+                        default=Path("/run/smt-mcu-updater/service.sock"),
+                        help="本机 Go 下位机升级服务 Unix socket")
     args = parser.parse_args()
     if not 1 <= args.port <= 65535 or not 0 < args.timeout <= 60:
         parser.error("端口必须为 1–65535，发现等待时间必须大于 0 且不超过 60 秒")

@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from uuid import uuid4
 
 from smt_controller.connectivity.identity import DeviceIdentity
@@ -10,14 +10,16 @@ from smt_controller.connectivity.protocol import (
 
 
 class ConnectionServer:
-    """只读连接服务；业务状态通过回调注入，没有运动命令入口。"""
+    """状态与更新检查服务；业务通过回调注入，没有运动或实际烧录入口。"""
 
     def __init__(self, identity: DeviceIdentity, status: Callable[[], dict], *,
-                 idle_timeout: float = IDLE_TIMEOUT_SECONDS, max_clients: int = 16):
+                 idle_timeout: float = IDLE_TIMEOUT_SECONDS, max_clients: int = 16,
+                 update_handler: Callable[[str], Awaitable[dict]] | None = None):
         self.identity = identity
         self.status = status
         self.idle_timeout = idle_timeout
         self.max_clients = max_clients
+        self.update_handler = update_handler
         self._server: asyncio.Server | None = None
         self._tasks: set[asyncio.Task] = set()
         self._closing = False
@@ -64,10 +66,13 @@ class ConnectionServer:
                     if not isinstance(client_name, str) or not 1 <= len(client_name) <= 128:
                         raise ProtocolError("client_name 必须为 1–128 字符的字符串")
                     connected = True
+                    device = self.identity.describe()
+                    if self.update_handler is not None:
+                        device["capabilities"] += ["mcu_update_check", "mcu_update_status"]
                     reply = {
                         "type": "hello", "request_id": request_id,
                         "protocol_version": PROTOCOL_VERSION,
-                        "session_id": str(uuid4()), "device": self.identity.describe(),
+                        "session_id": str(uuid4()), "device": device,
                         "heartbeat_interval_s": HEARTBEAT_SECONDS,
                         "idle_timeout_s": self.idle_timeout,
                     }
@@ -75,8 +80,14 @@ class ConnectionServer:
                     reply = {"type": "pong", "request_id": request_id}
                 elif kind == "get_status":
                     reply = {"type": "status", "request_id": request_id, "status": self.status()}
+                elif kind in ("check_mcu_update", "get_mcu_update_status", "start_mcu_update"):
+                    if self.update_handler is None:
+                        await self._error(writer, request_id, "UPDATER_NOT_CONFIGURED", "升级接口尚未配置")
+                        continue
+                    reply = {"type": "mcu_update", "request_id": request_id,
+                             "update": await self.update_handler(kind)}
                 else:
-                    await self._error(writer, request_id, "UNSUPPORTED_REQUEST", "当前仅支持 ping/get_status")
+                    await self._error(writer, request_id, "UNSUPPORTED_REQUEST", "不支持该请求；运动命令尚未开放")
                     continue
                 await write_message(writer, reply)
         except ProtocolError as exc:

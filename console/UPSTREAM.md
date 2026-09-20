@@ -22,16 +22,18 @@ Java、Maven、依赖 JAR 和构建结果不纳入版本控制。上游内嵌组
 OpenPnP 的 Swing 界面直接引用 `model`、`spi`、`machine`、`vision` 等模块。
 只复制 `gui/` 无法构建可运行应用，因此保留其依赖的完整 Java 应用。
 
-当前这是可独立构建、已加入中文本土化的 OpenPnP 桌面端，尚未接入本项目 Python controller：
+当前这是可独立构建、已加入中文本土化的 OpenPnP 界面，机器控制业务尚未适配 Python controller；下位机更新查询已独立接入：
 
-目录现按 `frontend/` 与 `backend/` 划分；`backend/` 预留给笔记本侧 Go 后端。
+目录现按 `frontend/` 与 `backend/` 划分；`backend/` 预留给上位机控制面板的 Go 后端。
+笔记本或手机是访问终端；本地开发预览不改变 console 属于上位机软件的定位。
 此调整仅建立目录和职责边界，Java 业务模块尚未迁移，前后端 API 尚未实现。
 
-- 本项目 mDNS 发现、TCP 8765 握手/状态协议尚无 Java 客户端适配。
+- Java 更新客户端已使用 TCP 8765 握手与更新检查；mDNS 发现及常规机器状态界面尚未适配。
 - TCP 8766 的预览图像尚未嵌入 OpenPnP 界面。
-- OpenPnP 自身具有任务执行、视觉和硬件驱动功能，不能把这些职责直接视为已委托给板端。
-- 后续需先确定任务状态与执行权归属，再增加远程适配；保留板端执行方案时，避免两端各自执行贴装流程。
-- 计划由前端调用 Go 本地后端，再由 Go 适配板端协议；真实任务执行权仍归板端。
+- OpenPnP 自身具有任务执行、视觉和硬件驱动功能，不能把这些职责直接视为已委托给 Python controller。
+- 后续需将任务执行适配到 controller，避免 OpenPnP 和 controller 各自执行同一贴装流程。
+- 计划由界面调用上位机 Go 面板后端，再由 Go 适配 controller 协议；真实任务执行权归 controller。
+- 新增「机器 → 下位机固件更新…」独立入口，`McuUpdateClient` 使用现有 TCP 握手经 Python 查询 Go 升级服务；当前只检查更新条件，不执行烧录，也未接通其他机器业务接口。
 
 ## 主要代码入口
 

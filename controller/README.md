@@ -36,6 +36,7 @@ controller/
 │   ├── calibration/   # 标定边界，尚未实现变换
 │   ├── ports/         # 相机、运动、视觉能力契约
 │   ├── adapters/      # 当前为模拟适配器
+│   ├── firmware_update/ # 本机 Go 升级服务客户端与维护准入边界
 │   └── common/        # 单位明确的值类型与错误
 └── tests/             # 流程、并发拒绝、失败与取消测试
 ```
@@ -107,7 +108,7 @@ TCP 服务监听所有 IPv4 接口，`--interface` 限制的是发现公告与�
 
 ## 后续接入顺序
 
-1. 在 protocols 确认笔记本任务格式与下位机协议。
+1. 在 protocols 确认 console 面板提交的任务格式与下位机协议。
 2. 实现 USB Camera 适配器，验证缓冲与停稳后有效帧。
 3. 实现 OpenCV 流水线及 worker，在目标硬件测耗时与定位误差。
 4. 加入标定、单位与工作范围检查，再实现真实运动适配器。
@@ -116,3 +117,13 @@ TCP 服务监听所有 IPv4 接口，`--interface` 限制的是发现公告与�
 
 真实启动时只连接并核对状态，回零由明确操作触发。当前自动回零仅属于模拟演示。
 网络客户端断开不能直接取消物理任务；关闭连接不代表停机。
+
+## 下位机升级联动
+
+`--serve` 模式支持 `check_mcu_update` 和 `get_mcu_update_status`，通过
+`--mcu-updater-socket` 指定的本机 Unix socket 调用 Go 服务。默认路径为
+`/run/smt-mcu-updater/service.sock`，见 [MCU 更新协议](../protocols/mcu-update-v1.md)。
+
+`firmware_update` 是升级应用边界，`connectivity` 只分派请求，不直接写许可或调用 OpenOCD。
+当前 `start_mcu_update` 固定拒绝：真实下位机的停机、输出安全确认和运行版本读取尚未接入。
+断开或模拟空闲状态都不能作为维护许可；不会根据客户端传入的 `outputs_safe` 等字段放行。

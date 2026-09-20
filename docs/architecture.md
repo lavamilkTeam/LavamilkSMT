@@ -3,30 +3,34 @@
 ## 部署边界
 
 ```text
-笔记本：处理制板文件、准备任务、发起操作
-    │ 以太网（mDNS 发现 + TCP JSON Lines，业务控制协议待定）
+浏览器访问终端：笔记本、手机或本机浏览器
+    │ 局域网 / 本机访问控制面板
     ▼
-Linux 板：纯 Python 无界面控制进程
-    ├── connectivity：设备发现、握手、心跳与连接生命周期
-    ├── api：通信请求进入业务服务
-    ├── jobs：任务状态机与异常处理
-    ├── machine：唯一设备控制入口与控制权
-    ├── vision / calibration：测量与坐标修正
-    └── adapters：USB 相机、运动控制板、存储
-            │ 下位机协议待定
-            ▼
-        MCU：实时运动、IO、限位与硬件保护
+Linux 上位机
+    ├── console：控制面板、工程管理、任务准备（Go 后端待实现）
+    ├── controller：Python 控制服务
+    │   ├── connectivity / api：连接生命周期与业务入口
+    │   ├── jobs / machine：任务状态、设备控制权与维护协调
+    │   ├── vision / calibration：测量与坐标修正
+    │   └── adapters：USB 相机、运动控制板、存储
+    ├── host-updater：Go，上位机自身更新（待实现）
+    └── mcu-updater：Go，STM32 固件更新（服务已实现，真实维护准入待接入）
+
+controller ── 日常控制协议（待接入）──► MCU：实时运动、IO、限位与硬件保护
+mcu-updater ── OpenOCD / USB ST-LINK / SWD（未实机验收）──► MCU
 ```
 
 Python 控制进程无本地 UI。console/frontend 已导入完整 OpenPnP Java Swing 桌面应用。
-其界面依赖上游业务与硬件模块，当前仍为独立应用，尚未适配本项目 Python 板端协议。
-console/backend 预留给笔记本侧 Go 后端，负责文件解析、工程存储、任务准备和设备通信。
-计划调用关系为 frontend → Go backend → Python controller → MCU；当前仅完成目录划分，
-Java 业务逻辑尚未迁移，本地前后端 API 尚未定义。板端持有机器真实状态与任务执行权。
+其界面依赖上游业务与硬件模块，机器控制业务尚未适配 Python controller；下位机更新检查已独立接入。
+console/backend 预留给上位机 Go 面板后端，负责文件解析、工程存储、任务准备和控制服务适配。
+计划调用关系为面板界面 → Go backend → Python controller → MCU；Go 后端尚未实现，
+Java 业务逻辑尚未迁移，前后端 API 尚未定义。controller 持有机器真实状态与任务执行权。
+浏览器可以运行在外部终端，
+console 的部署定位始终是上位机控制面板，不以访问终端或开发机的位置划分职责。
 当前同时保留笔记本开发预览，并将中文版 OpenPnP 部署到上位机。
 板端 `smt-console.service` 通过 Xvfb、x11vnc 和 noVNC 在 `0.0.0.0:6080`
 提供独立 Swing 会话，浏览器可直接连接上位机，使用时不要求笔记本运行。
-这只是 OpenPnP 的部署位置变化，尚未接通 Python 业务协议，也未实现 Go 后端。
+当前 Swing 界面已部署在上位机，尚未接通 Python 业务协议，也未实现 Go 后端。
 部署与维护见 [板端控制界面](console-deployment.md)。
 来源、运行方法与待适配边界见 [console/UPSTREAM.md](../console/UPSTREAM.md)。
 当前代码实现离线模拟单次定位，以及独立常驻的局域网发现和只读连接服务。
@@ -37,7 +41,7 @@ Java 业务逻辑尚未迁移，本地前后端 API 尚未定义。板端持有�
 
 ## 代码组织
 
-采用 Feature-first 模块化单体与端口/适配器：jobs、machine、vision、calibration 按职责划分。
+controller 内采用 Feature-first 模块化单体与端口/适配器：jobs、machine、vision、calibration 按职责划分。
 各模块复杂后再拆 application/domain，不为每个空功能强行建立多层目录。
 
 - api → jobs / machine：只调用应用能力。
@@ -78,8 +82,33 @@ vision 返回像素中心和角度，不直接下发运动；标定缺失时不�
 
 ## 仓库与部署
 
+- console 是上位机控制面板，Go backend 与 Python controller 分别构建、通过接口协作。
 - controller 独立 Python 包；同一个进程独占真实设备，网络层不能启动多 worker 重复控机。
+- host-updater 仍为目录与职责约定；mcu-updater 已建立独立 Go 模块及本机 API，面板经 Python 查询更新条件。
 - firmware/mainboard 独立编译烧录，protocols 是跨模块协议的唯一约定来源。
 - 实测配置、标定、截图与日志放已忽略的 local/，并另行备份。
 - 整机发布记录 Git、硬件、系统镜像、控制服务、固件和协议版本。
 - 应用更新不要求重刷 Linux；已有只读网络服务的 systemd 模板，板厂驱动配置随硬件接入补充。
+
+## 更新服务边界
+
+两个 updater 按更新目标命名，都运行在上位机；拆分依据是更新对象、权限和恢复流程。
+host-updater 尚未实现。mcu-updater 已有 Go 服务、发布校验、烧录适配、任务持久化与本机 API；
+尚未部署到目标板或实机烧录，Python 没有真实维护与版本读取适配，因此面板端只检查、不烧录。
+具体实现和限制见 [MCU 更新协议](../protocols/mcu-update-v1.md)。
+
+| 目录 | 更新目标 | 计划执行方式 |
+| --- | --- | --- |
+| [host-updater](../host-updater/README.md) | 上位机应用服务及板型对应的系统固件 | 应用版本安装、服务切换与健康检查；系统镜像更新须另行接入板级方案 |
+| [mcu-updater](../mcu-updater/README.md) | STM32 下位机固件 | 下载发布固件，调用 OpenOCD 经 USB ST-LINK / SWD 烧录并核对运行版本 |
+
+- console 提供操作入口与状态展示，不直接执行安装或烧录；MCU 更新当前直接经 Python 查询 Go，其他面板 Go 后端仍未实现。两个 updater 独立于面板生命周期。
+- controller 协调设备停止与维护准入。两个 updater 必须使用同一份持久化更新互斥记录，
+  同一时刻只允许一个更新事务。mcu-updater 已实现持久文件许可与共享锁消费，host-updater 和真实 controller 须按同一契约接入，不能各自加进程锁就认为已互斥。
+- 停止或重启 controller 前必须保留维护约束；重启后先读取未完成更新记录，失败或状态未知时保持禁止运动。
+- 应用包、系统镜像和 MCU 固件显式区分目标，校验发布来源、完整性、硬件与协议兼容性。
+- 更新结果包含写入校验和运行健康确认；控制进程恢复或 MCU 重新连接不能直接视为升级成功，任务不自动续跑。
+- host-updater 第一阶段优先实现应用更新。系统镜像更新需先明确板型、存储分区、启动链与断电恢复方案；
+  mcu-updater 的旧版重新烧录与系统 A/B 回退是不同机制，目前均无自动回退实现。
+- 下载、更新日志与状态放独立运行数据目录，开发时分别使用 `local/host-updater/` 和 `local/mcu-updater/`；
+  共享维护记录的路径另行统一约定。用户工程、标定与密钥不作为发布包覆盖对象。

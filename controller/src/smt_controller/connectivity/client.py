@@ -49,7 +49,9 @@ class ControllerClient:
                     raise ProtocolError("响应 request_id 不匹配")
                 if response.get("type") == "error":
                     raise ProtocolError(str(response.get("error")))
-                expected_type = {"hello": "hello", "ping": "pong", "get_status": "status"}.get(kind)
+                expected_type = {"hello": "hello", "ping": "pong", "get_status": "status",
+                                 "check_mcu_update": "mcu_update", "get_mcu_update_status": "mcu_update",
+                                 "start_mcu_update": "mcu_update"}.get(kind)
                 if expected_type is not None and response.get("type") != expected_type:
                     raise ProtocolError("响应类型不匹配")
                 return response

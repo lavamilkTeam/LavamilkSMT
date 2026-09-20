@@ -6,10 +6,12 @@
 
 ```text
 SMT/
-├── console/              # frontend 桌面端、backend Go 后端预留与通信示例
+├── console/              # 上位机控制面板：界面与 Go 后端预留
 ├── controller/           # Linux 板：纯 Python 设备流程、视觉与通信
+├── host-updater/         # Go 上位机自身更新服务，当前为职责约定
+├── mcu-updater/          # Go 下位机更新服务与面板查询联动；真实维护接入前禁止烧录
 ├── firmware/
-│   └── mainboard/        # 下位机固件，芯片和工具链待确定
+│   └── mainboard/        # STM32F407ZGT6 下位机固件，板级工程待建立
 ├── protocols/            # 局域网连接、下位机协议及版本约定
 ├── deploy/               # 板端 systemd 服务模板
 ├── hardware/
@@ -28,16 +30,17 @@ SMT/
 
 ## 运行方式
 
-- 笔记本负责制板文件处理、准备任务，通过网线与板端通信。
-- 板端使用适配该板的 Linux，运行无界面控制服务和视觉程序；板型号待最终确定。
-- 中文 OpenPnP 可由上位机运行，通过浏览器访问；当前使用独立模拟配置，见 [部署说明](docs/console-deployment.md)。
+- `console` 是上位机控制面板；文件处理、工程管理和任务准备归面板后端，Go 后端尚未实现。笔记本、手机是访问终端，也可作为开发环境。
+- 板端使用适配该板的 Linux；`controller` 是独立的 Python 无界面控制与视觉服务。
+- 当前中文版 OpenPnP 在上位机运行，通过浏览器访问；机器运动仍为模拟，见 [部署说明](docs/console-deployment.md)。
+- [host-updater](host-updater/README.md) 预留上位机自身更新；[mcu-updater](mcu-updater/README.md) 已实现独立 Go 服务及 Swing → Python → Go 更新检查。真实维护适配尚未接入，面板暂不允许烧录。
 - 下位机固件独立编译和烧录，负责实时运动执行和硬件保护。
 - PCB 由夹具固定；随头下视相机找 Mark，工作台上视相机测元件偏移，详见 [双相机方案](docs/vision-plan.md)。
 - STEP/DWG 等机械文件由 CAD 软件打开，不参与软件构建。
 
 同一个仓库不代表同一个进程、编译器或部署包。各部分保留独立的依赖和构建入口，在协议层约定协作方式。
 
-板端采用纯 Python + asyncio，OpenCV 已准备在目标环境中，真实视觉适配器待接入。
+板端控制服务采用 Python + asyncio，OpenCV 已准备在目标环境中，真实视觉适配器待接入。
 局域网发现与 TCP 连接已实现，使用方法见 [连接协议](protocols/lan-connection-v1.md)。
 独立视频预览通过 HTTP 8766 传输灰度、二值化和轮廓图，见 [预览协议与客户端](protocols/preview-http-v1.md)。
 当前运行模拟演示无需第三方依赖：
