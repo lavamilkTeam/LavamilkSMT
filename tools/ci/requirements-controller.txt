@@ -1,0 +1,4 @@
+# CI uses Linux wheels; the ARM board retains its separately built native OpenCV.
+build==1.2.2.post1
+numpy==2.2.6
+opencv-python-headless==4.13.0.92

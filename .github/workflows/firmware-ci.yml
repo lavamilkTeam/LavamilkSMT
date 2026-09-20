@@ -1,0 +1,79 @@
+name: Firmware CI
+
+on:
+  push:
+    branches: [main, kihon]
+    paths:
+      - 'firmware/**'
+      - 'tools/ci/**'
+      - '.github/workflows/firmware-ci.yml'
+  pull_request:
+    branches: [main, kihon]
+    paths:
+      - 'firmware/**'
+      - 'tools/ci/**'
+      - '.github/workflows/firmware-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firmware-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  readiness:
+    name: Check firmware build entry
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      buildable: ${{ steps.inspect.outputs.buildable }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Test CI readiness and artifact guards
+        run: python3 -m unittest discover -s tools/ci/tests -v
+      - name: Inspect the real firmware project
+        id: inspect
+        run: python3 tools/ci/check_firmware.py
+
+  build:
+    name: STM32F407 / ARM GCC build
+    needs: readiness
+    if: needs.readiness.outputs.buildable == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - name: Install the ARM bare-metal toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib cmake ninja-build
+          arm-none-eabi-gcc --version
+          cmake --version
+          ninja --version
+      - name: Configure the board project
+        run: >-
+          cmake -S firmware/mainboard -B build/firmware -G Ninja
+          -DCMAKE_TOOLCHAIN_FILE="$GITHUB_WORKSPACE/firmware/cmake/arm-none-eabi-gcc.cmake"
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      - name: Compile and export real firmware images
+        run: |
+          cmake --build build/firmware --parallel 2
+          python3 tools/ci/collect_firmware.py build/firmware dist/firmware
+      - name: Upload firmware and compile commands
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: stm32f407-firmware
+          path: |
+            dist/firmware/
+            build/firmware/compile_commands.json
+          if-no-files-found: error
+          retention-days: 14
