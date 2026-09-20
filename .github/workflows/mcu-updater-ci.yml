@@ -60,8 +60,20 @@ jobs:
           cache-dependency-path: console/frontend/pom.xml
       - name: Test Python maintenance boundary
         run: PYTHONPATH=controller/src python3 -m unittest discover -s controller/tests -p test_firmware_update.py -v
+      - name: Install Chinese fonts required by Swing localization tests
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y fonts-noto-cjk
       - name: Compile Swing and test update client and translations
         run: ./console/build-frontend.sh -Djava.awt.headless=true -Dtest=McuUpdateClientTest,ChineseLocalizationTest,LocalisationTest
+      - name: Upload Swing test reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mcu-updater-swing-test-reports
+          path: console/frontend/target/surefire-reports/
+          if-no-files-found: warn
+          retention-days: 14
       - name: Check real Java to Python to Go processes (no hardware)
         run: python3 tools/check_mcu_update_link.py
       - name: Upload updater binaries
