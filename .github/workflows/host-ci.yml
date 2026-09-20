@@ -1,0 +1,112 @@
+name: Host CI
+
+on:
+  push:
+    branches: [main, kihon]
+    paths:
+      - 'controller/**'
+      - 'console/frontend/**'
+      - 'console/build-frontend.sh'
+      - 'tools/ci/**'
+      - '.github/workflows/host-ci.yml'
+  pull_request:
+    branches: [main, kihon]
+    paths:
+      - 'controller/**'
+      - 'console/frontend/**'
+      - 'console/build-frontend.sh'
+      - 'tools/ci/**'
+      - '.github/workflows/host-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: host-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  controller:
+    name: Python controller / ${{ matrix.python }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.11', '3.13']
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: |
+            controller/pyproject.toml
+            tools/ci/requirements-controller.txt
+      - name: Install CI dependencies
+        run: python -m pip install -r tools/ci/requirements-controller.txt
+      - name: Build and install the controller wheel
+        run: |
+          python -m build controller --outdir dist/controller
+          python -m pip install "$(find dist/controller -maxdepth 1 -name '*.whl' -print -quit)[network]"
+          python -m pip check
+      - name: Test the installed package (no optional test skips)
+        run: python tools/ci/test_controller.py
+      - name: Check installed CLI entry points
+        run: |
+          smt-controller --demo
+          smt-controller --help
+          smt-preview --help
+      - name: Upload Python distributions
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: controller-python-${{ matrix.python }}
+          path: dist/controller/
+          if-no-files-found: error
+          retention-days: 14
+
+  console:
+    name: OpenPnP / Java 17
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          cache-dependency-path: console/frontend/pom.xml
+      - name: Install Chinese fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y fonts-noto-cjk
+      - name: Build, check style and run all Java tests
+        run: ./console/build-frontend.sh -Djava.awt.headless=true
+      - name: Package desktop runtime with dependencies
+        run: |
+          mkdir -p dist/console
+          tar -czf dist/console/openpnp-console.tar.gz -C console/frontend \
+            target/openpnp-gui-0.0.1-alpha-SNAPSHOT.jar target/lib \
+            samples VERSION.txt LICENSE.txt OPENPNP_2_0.md OPENPNP_2_0_zh_CN.md
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: console-test-reports
+          path: console/frontend/target/surefire-reports/
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Upload desktop runtime
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: console-java17
+          path: dist/console/*.tar.gz
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
