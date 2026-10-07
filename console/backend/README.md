@@ -1,10 +1,22 @@
-# Console Go 后端（预留）
+# Console Go 面板服务
 
 此目录用于上位机控制面板的 Go 后端，部署在上位机，为面板界面提供业务接口。
-现有界面为 `../frontend/` Java 应用；笔记本、手机是访问终端。
-目前只有职责约定，尚未创建 Go 服务、模块或 API。开发板的 Python `controller/` 独立维护。
+现有界面为 `../frontend/` Java 应用，`../web/` 为 React 原型；笔记本、手机是访问终端。
+目前 `cmd/smt-panel` 已提供静态 Web 服务和 `/healthz`，与桌面壳共用 `console/go.mod`。
+开发板的 Python `controller/` 独立维护；以下工程管理和机器业务 API 仍未实现。
 
-## 职责
+## 当前入口
+
+仓库根目录执行 `./console/build-panel.sh web`，随后运行
+`./console/build/bin/smt-panel --listen 0.0.0.0:8080`。
+默认监听 `127.0.0.1:8080`；部署模板显式监听所有 IPv4 接口，供局域网浏览器访问。
+该进程不需要图形环境或 Node.js，也不引用 Wails。
+`GET /healthz` 只表示页面服务状态，固定报告 `mode=simulation`、`machine_connected=false`。
+静态入口仅接受 GET/HEAD，未知资源/API 返回 404，不把 HTML 当成成功业务响应。
+当前无业务写入接口或用户认证；后续加入远程控制时必须在协议层定义访问权限与控制权。
+部署方式和验证状态见 [桌面与 kiosk 接入](../desktop/README.md)。
+
+## 后续业务职责
 
 - 解析 BOM、贴装坐标等输入文件，校验并转换为统一工程模型。
 - 管理本地工程、配置、物料和任务草稿的保存与加载。

@@ -93,3 +93,11 @@ bash /opt/smt/setup/console/install_target_console.sh <部署包的完整 SHA-25
 - 最后采样约有 1.2GiB 可用内存、3.5GiB 剩余磁盘空间。
 
 本机安装与验证记录保存于 `artifacts/console-target/`，未纳入 Git。
+
+## 新 Web / Wails 面板接入（尚未部署）
+
+`console/build-panel.sh` 可构建独立 HTTP 页面服务和 Wails 桌面壳，
+`deploy/smt-panel.service` 与 `deploy/kiosk/smt-kiosk.service` 提供不同访问入口。
+它们不替换本页记录的 Swing/noVNC 服务；Python 控制服务也不随面板退出。
+2026-10-07 按用户要求先完善代码，本次没有执行构建、测试或板端服务切换。
+安装、显示依赖和回退步骤见 [桌面接入说明](../console/desktop/README.md)。

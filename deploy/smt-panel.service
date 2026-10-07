@@ -1,0 +1,23 @@
+[Unit]
+Description=SMT Web panel (static simulation UI)
+After=network.target
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+[Service]
+Type=simple
+DynamicUser=yes
+ExecStart=/opt/smt/panel/bin/smt-panel --listen 0.0.0.0:8080
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=10
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

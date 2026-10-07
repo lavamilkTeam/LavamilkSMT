@@ -7,7 +7,7 @@
     │ 局域网 / 本机访问控制面板
     ▼
 Linux 上位机
-    ├── console：控制面板、工程管理、任务准备（Go 后端待实现）
+    ├── console：控制面板、工程管理、任务准备（Go 静态服务已实现，业务 API 待实现）
     ├── controller：Python 控制服务
     │   ├── connectivity / api：连接生命周期与业务入口
     │   ├── jobs / machine：任务状态、设备控制权与维护协调
@@ -22,15 +22,19 @@ mcu-updater ── OpenOCD / USB ST-LINK / SWD（未实机验收）──► MCU
 
 Python 控制进程无本地 UI。console/frontend 已导入完整 OpenPnP Java Swing 桌面应用。
 其界面依赖上游业务与硬件模块，机器控制业务尚未适配 Python controller；下位机更新检查已独立接入。
-console/backend 预留给上位机 Go 面板后端，负责文件解析、工程存储、任务准备和控制服务适配。
-计划调用关系为面板界面 → Go backend → Python controller → MCU；Go 后端尚未实现，
+console/backend 已提供上位机 Go HTTP 静态服务；文件解析、工程存储、任务准备和控制服务适配仍待实现。
+计划调用关系为面板界面 → Go backend → Python controller → MCU；Go 机器业务接口尚未实现，
 Java 业务逻辑尚未迁移，前后端 API 尚未定义。controller 持有机器真实状态与任务执行权。
-浏览器可以运行在外部终端，
+console/web 是 React 界面原型，尚未接入真实控制。浏览器可以运行在外部终端，
 console 的部署定位始终是上位机控制面板，不以访问终端或开发机的位置划分职责。
+console/desktop 新增 Wails 窗口壳，与 Go HTTP 入口通过 internal/webui 共享前端构建产物；
+两个 Go 入口归 console/go.mod，不引用 controller 或 updater 的内部代码。Web 不使用 Wails bindings。
+无桌面的本机显示提供 Xorg/Openbox 单应用会话，生命周期独立于机器服务。
+本次尚未构建测试或实机部署，见 [Wails 与 kiosk](../console/desktop/README.md)。
 当前同时保留笔记本开发预览，并将中文版 OpenPnP 部署到上位机。
 板端 `smt-console.service` 通过 Xvfb、x11vnc 和 noVNC 在 `0.0.0.0:6080`
 提供独立 Swing 会话，浏览器可直接连接上位机，使用时不要求笔记本运行。
-当前 Swing 界面已部署在上位机，尚未接通 Python 业务协议，也未实现 Go 后端。
+当前 Swing 界面已部署在上位机，尚未接通 Python 业务协议；新 Go 静态服务尚未部署。
 部署与维护见 [板端控制界面](console-deployment.md)。
 来源、运行方法与待适配边界见 [console/UPSTREAM.md](../console/UPSTREAM.md)。
 当前代码实现离线模拟单次定位，以及独立常驻的局域网发现和只读连接服务。
