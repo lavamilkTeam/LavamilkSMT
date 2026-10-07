@@ -3,12 +3,24 @@
 `console` 属于上位机软件，负责界面、用户交互及面板后端。笔记本、手机作为访问终端，
 本地开发预览不改变其部署定位。`controller` 独立承担机器状态、视觉和任务执行。
 
+## React 界面试用入口
+
+新增 [web/](web/README.md)：React + TypeScript + shadcn/ui + Tailwind CSS，采用 Feature First。
+在仓库根目录执行 `./console/dev-web.sh`，浏览器打开 `http://127.0.0.1:5173/`。
+这是界面原型，包含任务编辑、模拟点动/贴装和可选的只读视频预览，尚未接真实机器业务 API。
+原有 Java Swing 与目标板部署仍使用下文入口。
+
+新增 [Wails 桌面与 kiosk 入口](desktop/README.md)：`./console/build-panel.sh all` 构建
+`smt-desktop` 和 `smt-panel`，分别提供本机窗口和独立 HTTP 静态服务。
+`./console/run-desktop.sh --kiosk` 在已有图形会话中全屏；无桌面开机入口见
+`deploy/kiosk/`。本次按要求先完善代码，尚未构建测试或部署到目标板。
+
 ## 现有 OpenPnP 应用
 
 面板负责制板文件处理、工程管理与贴装任务准备。
 现有界面已导入 OpenPnP（Java Swing、GPL-3.0），源码位于 `frontend/`。
-`backend/` 预留给后续自行开发的 Go 面板后端，部署在上位机。
-目前前端保留上游应用功能并加入简体中文本土化，Go 后端尚未实现，两者还没有完成运行时解耦。
+`backend/` 是上位机 Go 面板后端，现已提供 Web 静态服务，业务接口待实现。
+目前 Java 前端保留上游应用功能并加入简体中文本土化，两者还没有完成业务解耦。
 开发板上的 `controller/` 仍是独立的 Python 视觉与设备控制程序。
 当前中文版也部署到上位机，由板端运行 Swing 会话、浏览器远程访问。
 部署入口、服务管理和能力边界见 [目标板部署](../docs/console-deployment.md)。
@@ -18,7 +30,13 @@
 ```text
 console/
 ├── frontend/               # Java Swing 桌面端，暂保留上游依赖的业务模块
-├── backend/                # 上位机 Go 面板后端预留，职责约定见其 README
+├── backend/                # Go HTTP 静态服务，机器业务接口待实现
+├── web/                    # 浏览器和 Wails 复用的 React 界面原型
+├── desktop/                # Wails 窗口入口
+├── internal/webui/         # 两个 Go 入口共用的静态资源处理器
+├── go.mod                  # 面板 Go 模块，独立于两个 updater
+├── build-panel.sh          # Web 检查、构建与 Linux 桌面/HTTP 程序构建
+├── run-desktop.sh          # 在现有图形会话启动 Wails
 ├── openpnp-upstream.json    # 上游提交及逐文件校验值
 ├── UPSTREAM.md             # 来源、许可证、源码入口、适配边界
 ├── build-frontend.sh        # 构建并执行上游测试

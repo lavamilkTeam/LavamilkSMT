@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# xinit client: one D-Bus session, minimal window manager, one panel window.
+set -euo pipefail
+binary=/opt/smt/panel/bin/smt-desktop
+wm_pid=""
+app_pid=""
+cleanup() {
+  trap - EXIT TERM INT HUP
+  if [[ -n "$app_pid" ]]; then kill "$app_pid" 2>/dev/null || true; fi
+  if [[ -n "$wm_pid" ]]; then kill "$wm_pid" 2>/dev/null || true; fi
+  wait 2>/dev/null || true
+}
+trap cleanup EXIT
+trap 'exit 0' TERM INT HUP
+[[ -n "${DISPLAY:-}" ]] || { echo "X11 DISPLAY is required" >&2; exit 1; }
+[[ -x "$binary" ]] || { echo "Missing $binary" >&2; exit 1; }
+command -v openbox >/dev/null || { echo "Install openbox" >&2; exit 1; }
+if command -v xset >/dev/null; then
+  xset s off || true
+  xset -dpms || true
+fi
+# No desktop, autostart programs, terminal shortcuts or application menu.
+openbox --config-file /etc/smt/openbox-kiosk.xml &
+wm_pid=$!
+args=(--kiosk)
+case "${SMT_KIOSK_SOFTWARE_RENDERING:-0}" in
+  0) ;;
+  1) args+=(--software-rendering) ;;
+  *) echo "SMT_KIOSK_SOFTWARE_RENDERING must be 0 or 1" >&2; exit 1 ;;
+esac
+"$binary" "${args[@]}" &
+app_pid=$!
+# If either component exits, end the whole display session. systemd restarts it.
+wait -n "$app_pid" "$wm_pid"

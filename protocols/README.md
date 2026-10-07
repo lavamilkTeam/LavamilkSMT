@@ -7,6 +7,9 @@
 
 另有 [OpenCV 预览 HTTP v1](preview-http-v1.md)，通过独立端口 8766 传输处理后的相机画面。
 
+新增 [Console 页面服务 HTTP v1](panel-http-v1.md)：8080 静态页面与页面服务健康信息，
+不提供机器控制，代码已编写但本次尚未测试或部署。
+
 ## Console 面板与 controller
 
 两者部署在同一台 Linux 上位机，仍通过明确接口协作。浏览器访问终端与本地开发客户端
